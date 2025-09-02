@@ -20,13 +20,20 @@ log_error() {
 # --- Main Script ---
 log_start "🚀 Starting combined AWS report generation..."
 
-# --- Main Script ---
-log "🚀 Starting combined AWS report generation..."
-
 # Set execute permissions for the dependency script
-log "🔧 Setting execute permissions for dependency script..."
+log_start "🔧 Setting execute permissions for dependency script..."
 chmod +x ./dependencies.sh
-log "✅ Permissions set."
+log_success "Permissions set."
+
+# Run the dependency installation script
+./dependencies.sh
+
+log_start "🔧 Setting execute permissions for all report scripts..."
+chmod +x ./script/aws_inventory.sh
+chmod +x ./script/aws_sp_ri_report.sh
+chmod +x ./script/ebs_report.sh
+chmod +x ./script/aws_billing_report.sh
+log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
 if [[ ! -f "./script/aws_inventory.sh" || ! -f "./script/aws_sp_ri_report.sh" || ! -f "./script/ebs_report.sh" || ! -f "./script/aws_billing_report.sh" ]]; then
@@ -73,7 +80,7 @@ fi
 
 if [[ "$sp-ri" == "1" ]]; then
     log_start "Running aws_sp_ri_report.sh..."
-    ./script/aws_sp_ri_report.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/aws_sp_ri_report.sh
     log_success "aws_sp_ri_report.sh finished."
 fi
 
