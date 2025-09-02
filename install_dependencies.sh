@@ -12,10 +12,9 @@ install_dependencies() {
     log "🔧 Checking and installing dependencies (jq and bc)..."
     if ! command -v jq >/dev/null 2>&1; then
         log "   jq not found. Installing..."
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            sudo apt-get update && sudo apt-get install -y jq
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-            brew install jq
+        # Use yum for RPM-based systems
+        if command -v yum >/dev/null 2>&1; then
+            sudo yum install -y jq
         else
             log "   Warning: Could not automatically install jq. Please install it manually."
         fi
@@ -23,10 +22,8 @@ install_dependencies() {
     
     if ! command -v bc >/dev/null 2>&1; then
         log "   bc not found. Installing..."
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            sudo apt-get update && sudo apt-get install -y bc
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-            brew install bc
+        if command -v yum >/dev/null 2>&1; then
+            sudo yum install -y bc
         else
             log "   Warning: Could not automatically install bc. Please install it manually."
         fi
