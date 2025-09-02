@@ -20,8 +20,16 @@ log_error() {
 # --- Main Script ---
 log_start "🚀 Starting combined AWS report generation..."
 
+# --- Main Script ---
+log "🚀 Starting combined AWS report generation..."
+
+# Set execute permissions for the dependency script
+log "🔧 Setting execute permissions for dependency script..."
+chmod +x ./dependencies.sh
+log "✅ Permissions set."
+
 # Check if the required scripts and config file exist
-if [[ ! -f "./aws_inventory.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_report.sh" || ! -f "./aws_billing_report.sh" ]]; then
+if [[ ! -f "./script/aws_inventory.sh" || ! -f "./script/aws_sp_ri_report.sh" || ! -f "./script/ebs_report.sh" || ! -f "./script/aws_billing_report.sh" ]]; then
     log_error "Error: One or more required scripts are missing. Please ensure all scripts are in the same directory."
     exit 1
 fi
@@ -53,25 +61,25 @@ done
 # Run reports based on the configuration file
 if [[ "$inventory" == "1" ]]; then
     log_start "Running aws_inventory.sh..."
-    ./aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "aws_inventory.sh finished."
 fi
 
 if [[ "$ebs" == "1" ]]; then
     log_start "Running ebs_report.sh..."
-    ./ebs_report.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/ebs_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "ebs_report.sh finished."
 fi
 
 if [[ "$sp-ri" == "1" ]]; then
     log_start "Running aws_sp_ri_report.sh..."
-    ./aws_sp_ri_report.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/aws_sp_ri_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "aws_sp_ri_report.sh finished."
 fi
 
 if [[ "$billing" == "1" ]]; then
     log_start "Running aws_billing_report.sh..."
-    ./aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "aws_billing_report.sh finished."
 fi
 
