@@ -1,63 +1,79 @@
 #!/bin/bash
 # main_report_runner.sh
-# Main script to run all AWS reporting scripts sequentially.
+# Main script to run all AWS reporting scripts based on a configuration file.
 
 set -euo pipefail
 
-# --- Logging Function ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
+# --- Logging Functions with Status Symbols ---
+log_start() {
+    echo >&2 -e "➡️  $*"
+}
+
+log_success() {
+    echo >&2 -e "✅  $*"
+}
+
+log_error() {
+    echo >&2 -e "❌  $*"
 }
 
 # --- Main Script ---
-log "🚀 Starting combined AWS report generation..."
+log_start "🚀 Starting combined AWS report generation..."
 
-# Set execute permissions for the dependency script
-log "🔧 Setting execute permissions for dependency script..."
-chmod +x ./install_dependencies.sh
-log "✅ Permissions set."
-
-# Run the dependency installation script
-./install_dependencies.sh
-
-# Set execute permissions for all necessary report scripts
-log "🔧 Setting execute permissions for all report scripts..."
-chmod +x ./aws_inventory.sh
-chmod +x ./aws_sp_ri_report.sh
-chmod +x ./ebs_report.sh
-chmod +x ./aws_billing_report.sh
-log "✅ Permissions set."
-
-# Check if the required scripts exist
+# Check if the required scripts and config file exist
 if [[ ! -f "./aws_inventory.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_report.sh" || ! -f "./aws_billing_report.sh" ]]; then
-    log "❌ Error: One or more required scripts are missing."
-    log "Please ensure all scripts are in the same directory."
+    log_error "Error: One or more required scripts are missing. Please ensure all scripts are in the same directory."
     exit 1
 fi
 
-# Determine arguments to pass
-TIME_ARGS=""
-for arg in "$@"; do
-    if [[ "$arg" =~ ^(-b|-e).* ]]; then
-        TIME_ARGS+=" $arg"
-    fi
+if [[ ! -f "./config.ini" ]]; then
+    log_error "Error: Configuration file config.ini not found. Please create it."
+    exit 1
+fi
+
+# Read configuration from the INI file
+source <(grep = config.ini | sed 's/ *= */=/g')
+
+# Process flags from CLI arguments without requiring a hyphen
+PASS_THROUGH_ARGS=()
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -r|--regions|-b|--begin|-e|--end|-f|--filename|-s|--sum-ebs) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
+        -h|--help)
+            log_start "Usage: $0 <other_args>"
+            log_start "  <other_args>: Arguments for the individual scripts (-r, -b, -e, -f, -s)."
+            log_start "  To select which reports to run, edit the config.ini file."
+            exit 0
+            ;;
+        *) PASS_THROUGH_ARGS+=("$1") ;;
+    esac
+    shift
 done
 
-# Run the inventory script (EC2 & RDS)
-log "Running aws_inventory.sh..."
-./aws_inventory.sh "$@"
+# Run reports based on the configuration file
+if [[ "$inventory" == "1" ]]; then
+    log_start "Running aws_inventory.sh..."
+    ./aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_inventory.sh finished."
+fi
 
-# Run the SP & RI report script
-log "Running aws_sp_ri_report.sh..."
-./aws_sp_ri_report.sh "$@"
+if [[ "$ebs" == "1" ]]; then
+    log_start "Running ebs_report.sh..."
+    ./ebs_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "ebs_report.sh finished."
+fi
 
-# Run the EBS volume report script
-log "Running ebs_report.sh..."
-./ebs_report.sh "$@"
+if [[ "$sp-ri" == "1" ]]; then
+    log_start "Running aws_sp_ri_report.sh..."
+    ./aws_sp_ri_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_sp_ri_report.sh finished."
+fi
 
-# Run the billing report script
-log "Running aws_billing_report.sh..."
-./aws_billing_report.sh "$@"
+if [[ "$billing" == "1" ]]; then
+    log_start "Running aws_billing_report.sh..."
+    ./aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_billing_report.sh finished."
+fi
 
-log "✅ All reports generated successfully."
-log "Your reports are now available in the current directory."
+log_success "All selected reports generated successfully."
+log_success "Your reports are now available in the current directory."
