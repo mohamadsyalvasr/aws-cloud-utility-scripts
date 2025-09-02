@@ -20,7 +20,7 @@ chmod +x ./ebs_volume_report.sh
 log "✅ Permissions set."
 
 # Check if the required scripts exist
-if [[ ! -f "./aws_inventory.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_report.sh" ]]; then
+if [[ ! -f "./aws_inventory_instance_report.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_volume_report.sh" ]]; then
     log "❌ Error: One or more required scripts (aws_inventory.sh, aws_sp_ri_report.sh, ebs_report.sh) are missing."
     log "Please ensure all scripts are in the same directory."
     exit 1
