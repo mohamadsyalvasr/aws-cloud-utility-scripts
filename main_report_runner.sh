@@ -78,7 +78,7 @@ if [[ "$ebs" == "1" ]]; then
     log_success "ebs_report.sh finished."
 fi
 
-if [[ "$sp-ri" == "1" ]]; then
+if [[ "$sp_ri" == "1" ]]; then
     log_start "Running aws_sp_ri_report.sh..."
     ./script/aws_sp_ri_report.sh
     log_success "aws_sp_ri_report.sh finished."
