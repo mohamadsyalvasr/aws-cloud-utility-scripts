@@ -26,11 +26,10 @@ chmod +x ./aws_inventory.sh
 chmod +x ./aws_sp_ri_report.sh
 chmod +x ./ebs_report.sh
 chmod +x ./aws_billing_report.sh
-chmod +x ./aws_workload_report.sh
 log "✅ Permissions set."
 
 # Check if the required scripts exist
-if [[ ! -f "./aws_inventory.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_report.sh" || ! -f "./aws_billing_report.sh" || ! -f "./aws_workload_report.sh" ]]; then
+if [[ ! -f "./aws_inventory.sh" || ! -f "./aws_sp_ri_report.sh" || ! -f "./ebs_report.sh" || ! -f "./aws_billing_report.sh" ]]; then
     log "❌ Error: One or more required scripts are missing."
     log "Please ensure all scripts are in the same directory."
     exit 1
@@ -55,10 +54,6 @@ log "Running aws_sp_ri_report.sh..."
 # Run the EBS volume report script
 log "Running ebs_report.sh..."
 ./ebs_report.sh "$@"
-
-# Run the workload report script
-log "Running aws_workload_report.sh..."
-./aws_workload_report.sh "$@"
 
 # Run the billing report script
 log "Running aws_billing_report.sh..."
