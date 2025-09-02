@@ -1,8 +1,9 @@
 #!/bin/bash
 # aws_inventory.sh
-# Generates a combined EC2 & RDS CSV with specs and average utilization metrics
+# Script to combine EC2 and RDS reports into a single CSV file with specifications and average utilization
 # based on a specified time period and regions.
 
+# Exit immediately if a command fails
 set -euo pipefail
 
 ########################################
@@ -71,6 +72,7 @@ fi
 START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
 END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
 
+
 ########################################
 # UTIL & PRECHECK
 ########################################
@@ -97,7 +99,8 @@ check_dependencies() {
 check_dependencies
 
 log "✍️ Preparing output file: $FILENAME"
-printf '"Service","Identifier","Name","Type/Class","Engine","vCPU","MemoryGiB","DiskGiB","Instance state","Average CPU %%","Average Memory %%","CreationTime","Region"\n' > "$FILENAME"
+# Adjusted CSV Header
+printf '"Name","Instance ID","Instance state","Type","Engine (RDS)","Instance type","Elastic IP","Launch time","vCPUs","Memory (GiB)","Disk (GiB)","Average CPU %%","Average Memory %%","Region"\n' > "$FILENAME"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -148,6 +151,7 @@ for region in "${REGIONS[@]}"; do
             fi
             DISK_GIB=${DISK_GIB:-0}
 
+            # Get Average CPU % from CloudWatch
             CPU_UTIL=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/EC2 \
                 --metric-name CPUUtilization \
@@ -159,6 +163,7 @@ for region in "${REGIONS[@]}"; do
                 --query "Datapoints[0].Average" \
                 --output text)
 
+            # Check if memory metrics exist
             AVG_MEMORY_PERCENT=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace CWAgent \
                 --metric-name mem_used_percent \
@@ -170,12 +175,32 @@ for region in "${REGIONS[@]}"; do
                 --query "Datapoints[0].Average" \
                 --output text)
             
+            # Fix: Add check for "null" string
             if [ -z "$AVG_MEMORY_PERCENT" ] || [ "$AVG_MEMORY_PERCENT" = "null" ]; then
                 AVG_MEMORY_PERCENT="N/A"
             fi
             
-            printf '"EC2","%s","%s","%s","N/A","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-                "$ID" "$NAME" "$TYPE" "$VCPU" "$MEM_GIB" "$DISK_GIB" "$STATE" "${CPU_UTIL:-N/A}" "${AVG_MEMORY_PERCENT:-N/A}" "$LAUNCH_TIME" "$region" >> "$FILENAME"
+            # Get Elastic IP (if any)
+            ELASTIC_IP=$(echo "$instance" | jq -r '.PublicIpAddress')
+            if [ "$ELASTIC_IP" = "null" ]; then
+                ELASTIC_IP="N/A"
+            fi
+
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+                "$NAME" \
+                "$ID" \
+                "$STATE" \
+                "EC2" \
+                "N/A" \
+                "$TYPE" \
+                "$ELASTIC_IP" \
+                "$LAUNCH_TIME" \
+                "$VCPU" \
+                "$MEM_GIB" \
+                "$DISK_GIB" \
+                "${CPU_UTIL:-N/A}" \
+                "${AVG_MEMORY_PERCENT:-N/A}" \
+                "$region" >> "$FILENAME"
         done < <(echo "$EC2_DATA" | jq -c '.[]')
     else
         log "  [EC2] No instances found."
@@ -248,8 +273,21 @@ for region in "${REGIONS[@]}"; do
             
             AVG_MEMORY_PERCENT=$(echo "scale=2; (1 - (${FREE_MEM:-0} / ${TOTAL_MEMORY_BYTES:-1})) * 100" | bc)
             
-            printf '"RDS","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-                "$ID" "$NAME" "$CLASS" "$ENGINE" "$VCPU" "$MEM_GIB" "$DISK_GIB" "$STATE" "${CPU_UTIL:-N/A}" "${AVG_MEMORY_PERCENT:-N/A}" "$CREATE_TIME" "$region" >> "$FILENAME"
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+                "$NAME" \
+                "$ID" \
+                "$STATE" \
+                "RDS" \
+                "$ENGINE" \
+                "$CLASS" \
+                "N/A" \
+                "$CREATE_TIME" \
+                "$VCPU" \
+                "$MEM_GIB" \
+                "$DISK_GIB" \
+                "${CPU_UTIL:-N/A}" \
+                "${AVG_MEMORY_PERCENT:-N/A}" \
+                "$region" >> "$FILENAME"
         done < <(echo "$RDS_DATA" | jq -c '.[]')
     else
         log "  [RDS] No DB instances found."
