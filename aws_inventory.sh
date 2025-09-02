@@ -1,5 +1,5 @@
 #!/bin/bash
-# aws_inventory_instance_report.sh
+# aws_inventory.sh
 # Script to combine EC2 and RDS reports into a single CSV file with specifications and average utilization
 # based on a specified time period and regions.
 
