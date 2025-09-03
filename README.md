@@ -9,12 +9,6 @@ This repository contains a set of Bash scripts designed to automate the generati
 - **`aws_sp_ri_report.sh`**: Generates a combined report of Savings Plans (SP) and Reserved Instances (RI), useful for cost and capacity management.
 
 ## Getting Started
-
-### Prerequisites
-
-- **AWS CLI**: The AWS Command Line Interface must be installed and configured with appropriate credentials. Your IAM user/role needs permissions to describe EC2 instances, RDS instances, Savings Plans, and to get metrics from CloudWatch.
-- **`jq`**: A lightweight and flexible command-line JSON processor. It's required for parsing the output from AWS CLI commands.
-
 ### Usage
 
 1. **Clone the Repository**:
