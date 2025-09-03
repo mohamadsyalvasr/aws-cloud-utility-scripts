@@ -33,7 +33,8 @@ log_success "Permissions set."
 ./dependencies.sh
 
 log_start "🔧 Setting execute permissions for all report scripts..."
-chmod +x ./script/aws_ec2_rds.sh
+chmod +x ./script/aws_ec2_report.sh
+chmod +x ./script/aws_rds_report.sh
 chmod +x ./script/aws_sp_ri_report.sh
 chmod +x ./script/ebs_report.sh
 chmod +x ./script/ebs_utilization_report.sh
@@ -49,7 +50,8 @@ log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
 REQUIRED_SCRIPTS=(
-    "./script/aws_ec2_rds.sh"
+    "./script/aws_ec2_report.sh"
+    "./script/aws_rds_report.sh"
     "./script/ebs_report.sh"
     "./script/ebs_utilization_report.sh"
     "./script/aws_billing_report.sh"
@@ -136,9 +138,9 @@ if [[ "$ebs_utilization" == "1" ]]; then
 fi
 
 if [[ "$inventory" == "1" ]]; then
-    log_start "Running aws_ec2_rds.sh..."
-    ./script/aws_ec2_rds.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_ec2_rds.sh finished."
+    log_start "Running aws_ec2_report.sh..."
+    ./script/aws_ec2_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_ec2_report.sh finished."
 fi
 
 if [[ "$efs" == "1" ]]; then
@@ -163,6 +165,12 @@ if [[ "$elasticache" == "1" ]]; then
     log_start "Running elasticache_report.sh..."
     ./script/elasticache_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "elasticache_report.sh finished."
+fi
+
+if [[ "$inventory" == "1" ]]; then
+    log_start "Running aws_rds_report.sh..."
+    ./script/aws_rds_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_rds_report.sh finished."
 fi
 
 if [[ "$s3" == "1" ]]; then

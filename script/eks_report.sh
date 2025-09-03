@@ -43,7 +43,7 @@ log "✅ Directory created."
 log "✍️ Preparing output file: $OUTPUT_FILE"
 
 # Create CSV header with the requested columns
-printf '"Name","Status","Kubernetes version","Support period","Upgrade policy","Date Created","Provider"\n' > "$OUTPUT_FILE"
+printf '"Name","Status","Kubernetes version","Support period","Upgrade policy","Date Created","Provider","Region"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -70,14 +70,15 @@ for region in "${REGIONS[@]}"; do
             UPGRADE_POLICY="N/A"
             PROVIDER="N/A"
 
-            printf '"%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$NAME" \
                 "$STATUS" \
                 "$K8S_VERSION" \
                 "$SUPPORT_PERIOD" \
                 "$UPGRADE_POLICY" \
                 "$CREATED_DATE" \
-                "$PROVIDER" >> "$OUTPUT_FILE"
+                "$PROVIDER" \
+                "$region" >> "$OUTPUT_FILE"
         done
     else
         log "  [EKS] No clusters found."

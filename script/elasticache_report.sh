@@ -42,7 +42,7 @@ log "✅ Directory created."
 log "✍️ Preparing output file: $OUTPUT_FILE"
 
 # Create CSV header with the requested columns
-printf '"Name","Node types","Type"\n' > "$OUTPUT_FILE"
+printf '"Name","Node types","Type","Region"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -55,10 +55,11 @@ for region in "${REGIONS[@]}"; do
             NODE_TYPE=$(echo "$cluster" | jq -r '.CacheNodeType')
             ENGINE=$(echo "$cluster" | jq -r '.Engine')
 
-            printf '"%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s"\n' \
                 "$NAME" \
                 "$NODE_TYPE" \
-                "$ENGINE" >> "$OUTPUT_FILE"
+                "$ENGINE" \
+                "$region" >> "$OUTPUT_FILE"
         done
     else
         log "  [ElastiCache] No clusters found."
