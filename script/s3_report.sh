@@ -1,21 +1,24 @@
 #!/bin/bash
-# s3_bucket_size_report.sh
-# Script to generate a report of all S3 buckets, including their total size.
+# s3_report.sh
+# Gathers a report on all S3 buckets, using CloudWatch to get the total size.
 
-# Exit immediately if a command fails
 set -euo pipefail
-
-# --- Configuration ---
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
-OUTPUT_FILE="${OUTPUT_DIR}/s3_bucket_size_report_$(date +"%Y%m%d-%H%M%S").csv"
 
 # --- Logging Function ---
 log() {
     echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
+
+# --- Configuration ---
+REGIONS=("ap-southeast-1" "ap-southeast-3")
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
+OUTPUT_FILE="${OUTPUT_DIR}/s3_report_$(date +"%Y%m%d-%H%M%S").csv"
+START_DATE=""
+END_DATE=""
+PERIOD=86400 # Default to 1 day in seconds
 
 # --- Dependency Check ---
 check_dependencies() {
@@ -36,54 +39,96 @@ check_dependencies
 log "✍️ Preparing output file: $OUTPUT_FILE"
 
 # Create CSV header
-printf '"Bucket Name","Creation Date","Region","Total Size (Bytes)"\n' > "$OUTPUT_FILE"
+printf '"Bucket Name","Region","Total Objects","Total Size (Bytes)","Last Modified Date"\n' > "$OUTPUT_FILE"
 
-# Get a list of all S3 buckets
-BUCKET_LIST=$(aws s3api list-buckets --output json)
-if [[ "$(echo "$BUCKET_LIST" | jq '.Buckets | length')" -eq 0 ]]; then
+# Process command-line arguments for date range
+while getopts "b:e:r:h" opt; do
+    case "$opt" in
+        b)
+            START_DATE="$OPTARG"
+            ;;
+        e)
+            END_DATE="$OPTARG"
+            ;;
+        r)
+            IFS=',' read -r -a REGIONS <<< "$OPTARG"
+            ;;
+        h)
+            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
+            exit 0
+            ;;
+        *)
+            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
+            exit 1
+            ;;
+    esac
+    shift
+done
+shift $((OPTIND-1))
+
+if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+    log "❌ Arguments -b and -e are required."
+    echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
+    exit 1
+fi
+
+START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
+END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
+
+BUCKET_LIST=$(aws s3api list-buckets --query 'Buckets[].Name' --output text)
+if [ -z "$BUCKET_LIST" ]; then
     log "❌ No S3 buckets found in your account."
     exit 0
 fi
 
-# Process each bucket and write to CSV
-echo "$BUCKET_LIST" | jq -c '.Buckets[]' | while read -r bucket_info; do
-    BUCKET_NAME=$(echo "$bucket_info" | jq -r '.Name')
-    CREATION_DATE=$(echo "$bucket_info" | jq -r '.CreationDate')
-    
-    log "Processing bucket: \033[1;33m$BUCKET_NAME\033[0m"
+for bucket in $BUCKET_LIST; do
+    log "Processing bucket: \033[1;33m$bucket\033[0m"
 
-    # Get the bucket's region
-    REGION=$(aws s3api get-bucket-location --bucket "$BUCKET_NAME" --query 'LocationConstraint' --output text)
+    REGION=$(aws s3api get-bucket-location --bucket "$bucket" --query 'LocationConstraint' --output text)
     if [ -z "$REGION" ] || [ "$REGION" = "null" ]; then
         REGION="us-east-1"
     fi
 
-    TOTAL_SIZE_BYTES=0
-    CONTINUATION_TOKEN=""
-
-    # Paginate through all objects to get total size
-    while : ; do
-        if [ -n "$CONTINUATION_TOKEN" ]; then
-            OBJECTS=$(aws s3api list-objects-v2 --bucket "$BUCKET_NAME" --region "$REGION" --continuation-token "$CONTINUATION_TOKEN" --output json)
-        else
-            OBJECTS=$(aws s3api list-objects-v2 --bucket "$BUCKET_NAME" --region "$REGION" --output json)
-        fi
-
-        SIZE_PARTIAL=$(echo "$OBJECTS" | jq -r '[.Contents[].Size] | add // 0')
-        TOTAL_SIZE_BYTES=$((TOTAL_SIZE_BYTES + SIZE_PARTIAL))
-
-        CONTINUATION_TOKEN=$(echo "$OBJECTS" | jq -r '.NextContinuationToken // ""')
+    # Get total size from CloudWatch
+    TOTAL_SIZE_BYTES=$(aws cloudwatch get-metric-statistics \
+        --namespace AWS/S3 \
+        --metric-name BucketSizeBytes \
+        --dimensions Name=BucketName,Value="$bucket",Name=StorageType,Value=StandardStorage \
+        --start-time "$START_TIME" \
+        --end-time "$END_TIME" \
+        --period "$PERIOD" \
+        --statistics Average \
+        --region "$REGION" \
+        --query "Datapoints[0].Average" \
+        --output text)
         
-        if [ -z "$CONTINUATION_TOKEN" ]; then
-            break
-        fi
-    done
+    # Get object count from CloudWatch
+    OBJECT_COUNT=$(aws cloudwatch get-metric-statistics \
+        --namespace AWS/S3 \
+        --metric-name NumberOfObjects \
+        --dimensions Name=BucketName,Value="$bucket",Name=StorageType,Value=AllStorageTypes \
+        --start-time "$START_TIME" \
+        --end-time "$END_TIME" \
+        --period "$PERIOD" \
+        --statistics Average \
+        --region "$REGION" \
+        --query "Datapoints[0].Average" \
+        --output text)
 
-    printf '"%s","%s","%s","%s"\n' \
-        "$BUCKET_NAME" \
-        "$CREATION_DATE" \
+    # Handle null or empty values
+    TOTAL_SIZE_BYTES=${TOTAL_SIZE_BYTES:-"N/A"}
+    OBJECT_COUNT=${OBJECT_COUNT:-"N/A"}
+
+    # Get last modified date of the bucket (by getting the first object and its last modified date)
+    LAST_MODIFIED_DATE=$(aws s3api list-objects-v2 --bucket "$bucket" --region "$REGION" --max-items 1 --query 'Contents[0].LastModified' --output text)
+    LAST_MODIFIED_DATE=${LAST_MODIFIED_DATE:-"N/A"}
+
+    printf '"%s","%s","%s","%s","%s"\n' \
+        "$bucket" \
         "$REGION" \
-        "$TOTAL_SIZE_BYTES" >> "$OUTPUT_FILE"
+        "$OBJECT_COUNT" \
+        "$TOTAL_SIZE_BYTES" \
+        "$LAST_MODIFIED_DATE" >> "$OUTPUT_FILE"
 done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"

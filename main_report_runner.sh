@@ -10,15 +10,15 @@ log() {
 }
 
 log_start() {
-    echo >&2 -e "➡️  $*"
+    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
 
 log_success() {
-    echo >&2 -e "✅  $*"
+    echo >&2 -e "[$(date +'%H:%M:%S')] ✅ $*"
 }
 
 log_error() {
-    echo >&2 -e "❌  $*"
+    echo >&2 -e "[$(date +'%H:%M:%S')] ❌ $*"
 }
 
 # --- Main Script ---
