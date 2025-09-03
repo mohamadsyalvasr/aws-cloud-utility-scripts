@@ -10,7 +10,7 @@ REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_FILE="../output/${YEAR}/${MONTH}/${DAY}/elb_report_$(date +"%Y%m%d-%H%M%S").csv"
+OUTPUT_FILE="output/${YEAR}/${MONTH}/${DAY}/elb_report_$(date +"%Y%m%d-%H%M%S").csv"
 
 # --- Logging Function ---
 log() {

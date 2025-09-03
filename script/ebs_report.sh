@@ -9,7 +9,7 @@ REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_DIR="../output/${YEAR}/${MONTH}/${DAY}"
+OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
 OUTPUT_FILE="${OUTPUT_DIR}/ebs_report_$(date +"%Y%m%d-%H%M%S").csv"
 
 # --- Logging Function ---
