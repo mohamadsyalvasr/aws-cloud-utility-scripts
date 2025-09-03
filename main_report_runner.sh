@@ -116,10 +116,10 @@ for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
 done
 
 # Run reports based on the configuration file
-if [[ "$inventory" == "1" ]]; then
-    log_start "Running aws_inventory.sh..."
-    ./script/aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_inventory.sh finished."
+if [[ "$billing" == "1" ]]; then
+    log_start "Running aws_billing_report.sh..."
+    ./script/aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_billing_report.sh finished."
 fi
 
 if [[ "$ebs_detailed" == "1" ]]; then
@@ -129,33 +129,15 @@ if [[ "$ebs_detailed" == "1" ]]; then
 fi
 
 if [[ "$ebs_utilization" == "1" ]]; then
-    log_start "Running ebs_report.sh..."
+    log_start "Running ebs_utilization_report.sh..."
     ./script/ebs_utilization_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "ebs_report.sh finished."
+    log_success "ebs_utilization_report.sh finished."
 fi
 
-if [[ "$sp_ri" == "1" ]]; then
-    log_start "Running aws_sp_ri_report.sh..."
-    ./script/aws_sp_ri_report.sh
-    log_success "aws_sp_ri_report.sh finished."
-fi
-
-if [[ "$billing" == "1" ]]; then
-    log_start "Running aws_billing_report.sh..."
-    ./script/aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_billing_report.sh finished."
-fi
-
-if [[ "$s3" == "1" ]]; then
-    log_start "Running s3_report.sh..."
-    ./script/s3_report.sh
-    log_success "s3_report.sh finished."
-fi
-
-if [[ "$elasticache" == "1" ]]; then
-    log_start "Running elasticache_report.sh..."
-    ./script/elasticache_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "elasticache_report.sh finished."
+if [[ "$efs" == "1" ]]; then
+    log_start "Running efs_report.sh..."
+    ./script/efs_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "efs_report.sh finished."
 fi
 
 if [[ "$eks" == "1" ]]; then
@@ -170,10 +152,28 @@ if [[ "$elb" == "1" ]]; then
     log_success "elb_report.sh finished."
 fi
 
-if [[ "$efs" == "1" ]]; then
-    log_start "Running efs_report.sh..."
-    ./script/efs_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "efs_report.sh finished."
+if [[ "$elasticache" == "1" ]]; then
+    log_start "Running elasticache_report.sh..."
+    ./script/elasticache_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "elasticache_report.sh finished."
+fi
+
+if [[ "$inventory" == "1" ]]; then
+    log_start "Running aws_inventory.sh..."
+    ./script/aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_inventory.sh finished."
+fi
+
+if [[ "$s3" == "1" ]]; then
+    log_start "Running s3_report.sh..."
+    ./script/s3_report.sh
+    log_success "s3_report.sh finished."
+fi
+
+if [[ "$sp_ri" == "1" ]]; then
+    log_start "Running aws_sp_ri_report.sh..."
+    ./script/aws_sp_ri_report.sh
+    log_success "aws_sp_ri_report.sh finished."
 fi
 
 if [[ "$vpc" == "1" ]]; then
