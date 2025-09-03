@@ -35,6 +35,8 @@ log_success "Permissions set."
 log_start "🔧 Setting execute permissions for all report scripts..."
 chmod +x ./script/aws_ec2_report.sh
 chmod +x ./script/aws_rds_report.sh
+chmod +x ./script/aws_ri_report.sh
+chmod +x ./script/aws_sp_report.sh
 chmod +x ./script/ebs_report.sh
 chmod +x ./script/ebs_utilization_report.sh
 chmod +x ./script/aws_billing_report.sh
@@ -61,8 +63,8 @@ REQUIRED_SCRIPTS=(
     "./script/efs_report.sh"
     "./script/vpc_report.sh"
     "./script/waf_report.sh"
-    "./script/sp_report.sh"
-    "./script/ri_report.sh"
+    "./script/aws_sp_report.sh"
+    "./script/aws_ri_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
