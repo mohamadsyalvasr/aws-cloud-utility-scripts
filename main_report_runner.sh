@@ -138,7 +138,7 @@ if [[ "$ebs_utilization" == "1" ]]; then
     log_success "ebs_utilization_report.sh finished."
 fi
 
-if [[ "$inventory" == "1" ]]; then
+if [[ "$ec2" == "1" ]]; then
     log_start "Running aws_ec2_report.sh..."
     ./script/aws_ec2_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "aws_ec2_report.sh finished."
