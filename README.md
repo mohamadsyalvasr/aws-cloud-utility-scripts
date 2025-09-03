@@ -20,7 +20,7 @@ This repository contains a set of Bash scripts designed to automate the generati
 1. **Clone the Repository**:
     
     ```
-    git clone <repository_url>
+    git clone https://github.com/mohamadsyalvasr/aws-cloud-utility-scripts
     
     ```
     
