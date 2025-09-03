@@ -7,6 +7,8 @@ This repository contains a set of Bash scripts designed to automate the generati
 - **`aws_inventory.sh`**: Generates a detailed inventory of EC2 and RDS instances, including specifications and average utilization metrics for a specified time period.
 - **`ebs_report.sh`**: Creates a report on EBS volumes, showing attachment status, disk size, and utilization metrics (if CloudWatch Agent is configured).
 - **`aws_sp_ri_report.sh`**: Generates a combined report of Savings Plans (SP) and Reserved Instances (RI), useful for cost and capacity management.
+- **`aws_billing_report.sh`**: Gathers all consumed services and their costs for a specified time period directly from the AWS Billing and Cost Management API.
+- **`s3_bucket_size_report.sh`**: Script to generate a report of all S3 buckets, including their total size.
 
 ## Getting Started
 ### Usage
