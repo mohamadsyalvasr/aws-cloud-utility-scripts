@@ -40,7 +40,7 @@ log "✍️ Preparing output file: $OUTPUT_FILE"
 printf '"Name","State","Type","Scheme","IP address type","VPC ID","Security groups","Date created","DNS name"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
-    log "Processing Region: [1;33m$region[0m"
+    log "Processing Region: \033[1;33m$region\033[0m"
 
     # Get a list of all ELBs in the region
     ELB_DATA=$(aws elbv2 describe-load-balancers --region "$region" --output json)
@@ -73,7 +73,7 @@ for region in "${REGIONS[@]}"; do
         log "  [ELB] No load balancers found."
     fi
 
-    log "Region [1;33m$region[0m Complete."
+    log "Region \033[1;33m$region\033[0m Complete."
 done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"

@@ -39,7 +39,7 @@ log "✍️ Preparing output file: $OUTPUT_FILE"
 printf '"Name","File system ID","Encrypted","Total size","Size in EFS Standard","Size in EFS IA","Size in Archive","File system state","Creation time"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
-    log "Processing Region: [1;33m$region[0m"
+    log "Processing Region: \033[1;33m$region\033[0m"
 
     # Get a list of all EFS file systems in the region
     EFS_DATA=$(aws efs describe-file-systems --region "$region" --output json)
@@ -74,7 +74,7 @@ for region in "${REGIONS[@]}"; do
         log "  [EFS] No file systems found."
     fi
 
-    log "Region [1;33m$region[0m Complete."
+    log "Region \033[1;33m$region\033[0m Complete."
 done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"
