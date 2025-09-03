@@ -42,12 +42,14 @@ printf '"Name","State","Type","Scheme","IP address type","VPC ID","Security grou
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
 
-    # Get a list of all ELBs in the region
+    # Get a list of all ELBs in the region and load them into an array
     ELB_DATA=$(aws elbv2 describe-load-balancers --region "$region" --output json)
     
-    # Use the `// []` trick to provide an empty array if `LoadBalancers` is null
-    if [[ "$(echo "$ELB_DATA" | jq '.LoadBalancers // [] | length')" -gt 0 ]]; then
-        echo "$ELB_DATA" | jq -c '.LoadBalancers[]' | while read -r elb_info; do
+    # Use mapfile and the '?' operator to safely handle an empty list.
+    mapfile -t ELB_INFO_ARRAY < <(echo "$ELB_DATA" | jq -c '.LoadBalancers[]?')
+
+    if [[ ${#ELB_INFO_ARRAY[@]} -gt 0 ]]; then
+        for elb_info in "${ELB_INFO_ARRAY[@]}"; do
             NAME=$(echo "$elb_info" | jq -r '.LoadBalancerName')
             STATE=$(echo "$elb_info" | jq -r '.State.Code')
             TYPE=$(echo "$elb_info" | jq -r '.Type')
