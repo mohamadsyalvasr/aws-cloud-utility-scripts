@@ -42,6 +42,8 @@ chmod +x ./script/s3_report.sh
 chmod +x ./script/elasticache_report.sh
 chmod +x ./script/eks_report.sh
 chmod +x ./script/elb_report.sh
+chmod +x ./script/efs_report.sh
+chmod +x ./script/vpc_report.sh
 log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
@@ -55,6 +57,8 @@ REQUIRED_SCRIPTS=(
     "./script/elasticache_report.sh"
     "./script/eks_report.sh"
     "./script/elb_report.sh"
+    "./script/efs_report.sh"
+    "./script/vpc_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
@@ -151,6 +155,18 @@ if [[ "$elb" == "1" ]]; then
     log_start "Running elb_report.sh..."
     ./script/elb_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "elb_report.sh finished."
+fi
+
+if [[ "$efs" == "1" ]]; then
+    log_start "Running efs_report.sh..."
+    ./script/efs_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "efs_report.sh finished."
+fi
+
+if [[ "$vpc" == "1" ]]; then
+    log_start "Running vpc_report.sh..."
+    ./script/vpc_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "vpc_report.sh finished."
 fi
 
 log_success "All selected reports generated successfully."
