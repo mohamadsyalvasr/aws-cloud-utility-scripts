@@ -168,7 +168,7 @@ if [[ "$elasticache" == "1" ]]; then
     log_success "elasticache_report.sh finished."
 fi
 
-if [[ "$inventory" == "1" ]]; then
+if [[ "$rds" == "1" ]]; then
     log_start "Running aws_rds_report.sh..."
     ./script/aws_rds_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "aws_rds_report.sh finished."
