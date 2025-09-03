@@ -33,7 +33,7 @@ log_success "Permissions set."
 ./dependencies.sh
 
 log_start "🔧 Setting execute permissions for all report scripts..."
-chmod +x ./script/aws_inventory.sh
+chmod +x ./script/aws_ec2_rds.sh
 chmod +x ./script/aws_sp_ri_report.sh
 chmod +x ./script/ebs_report.sh
 chmod +x ./script/ebs_utilization_report.sh
@@ -49,8 +49,7 @@ log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
 REQUIRED_SCRIPTS=(
-    "./script/aws_inventory.sh"
-    "./script/aws_sp_ri_report.sh"
+    "./script/aws_ec2_rds.sh"
     "./script/ebs_report.sh"
     "./script/ebs_utilization_report.sh"
     "./script/aws_billing_report.sh"
@@ -61,6 +60,8 @@ REQUIRED_SCRIPTS=(
     "./script/efs_report.sh"
     "./script/vpc_report.sh"
     "./script/waf_report.sh"
+    "./script/sp_report.sh"
+    "./script/ri_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
@@ -134,6 +135,12 @@ if [[ "$ebs_utilization" == "1" ]]; then
     log_success "ebs_utilization_report.sh finished."
 fi
 
+if [[ "$inventory" == "1" ]]; then
+    log_start "Running aws_ec2_rds.sh..."
+    ./script/aws_ec2_rds.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "aws_ec2_rds.sh finished."
+fi
+
 if [[ "$efs" == "1" ]]; then
     log_start "Running efs_report.sh..."
     ./script/efs_report.sh "${PASS_THROUGH_ARGS[@]}"
@@ -158,22 +165,22 @@ if [[ "$elasticache" == "1" ]]; then
     log_success "elasticache_report.sh finished."
 fi
 
-if [[ "$inventory" == "1" ]]; then
-    log_start "Running aws_inventory.sh..."
-    ./script/aws_inventory.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_inventory.sh finished."
-fi
-
 if [[ "$s3" == "1" ]]; then
     log_start "Running s3_report.sh..."
     ./script/s3_report.sh
     log_success "s3_report.sh finished."
 fi
 
-if [[ "$sp_ri" == "1" ]]; then
-    log_start "Running aws_sp_ri_report.sh..."
-    ./script/aws_sp_ri_report.sh
-    log_success "aws_sp_ri_report.sh finished."
+if [[ "$sp" == "1" ]]; then
+    log_start "Running aws_sp_report.sh..."
+    ./script/aws_sp_report.sh
+    log_success "aws_sp_report.sh finished."
+fi
+
+if [[ "$ri" == "1" ]]; then
+    log_start "Running aws_ri_report.sh..."
+    ./script/aws_ri_report.sh
+    log_success "aws_ri_report.sh finished."
 fi
 
 if [[ "$vpc" == "1" ]]; then
@@ -190,7 +197,6 @@ fi
 
 log_success "All selected reports generated successfully."
 log_success "Your reports are now available in the current directory."
-
 
 # --- ZIP the output folder ---
 log_start "📦 Zipping output folder..."
