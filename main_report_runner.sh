@@ -47,6 +47,7 @@ chmod +x ./script/elb_report.sh
 chmod +x ./script/efs_report.sh
 chmod +x ./script/vpc_report.sh
 chmod +x ./script/waf_report.sh
+chmod +x ./script/aws_workspaces_report.sh
 log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
@@ -65,6 +66,7 @@ REQUIRED_SCRIPTS=(
     "./script/waf_report.sh"
     "./script/aws_sp_report.sh"
     "./script/aws_ri_report.sh"
+    "./script/aws_workspaces_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
@@ -202,6 +204,12 @@ if [[ "$waf" == "1" ]]; then
     log_start "Running waf_report.sh..."
     ./script/waf_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "waf_report.sh finished."
+fi
+
+if [[ "$workspaces" == "1" ]]; then
+    log_start "Running aws_workspaces_report.sh..."
+    ./script/aws_workspaces_report.sh
+    log_success "aws_workspaces_report.sh finished."
 fi
 
 log_success "All selected reports generated successfully."
