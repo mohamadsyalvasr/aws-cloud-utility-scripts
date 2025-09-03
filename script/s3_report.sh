@@ -69,7 +69,7 @@ for bucket in $BUCKET_LIST; do
     TOTAL_SIZE_BYTES=$(aws cloudwatch get-metric-statistics \
         --namespace AWS/S3 \
         --metric-name BucketSizeBytes \
-        --dimensions Name=BucketName,Value="$bucket",Name=StorageType,Value=StandardStorage \
+        --dimensions "Name=BucketName,Value=$bucket" "Name=StorageType,Value=StandardStorage" \
         --start-time "$START_TIME" \
         --end-time "$END_TIME" \
         --period "$PERIOD" \
@@ -82,7 +82,7 @@ for bucket in $BUCKET_LIST; do
     OBJECT_COUNT=$(aws cloudwatch get-metric-statistics \
         --namespace AWS/S3 \
         --metric-name NumberOfObjects \
-        --dimensions Name=BucketName,Value="$bucket",Name=StorageType,Value=AllStorageTypes \
+        --dimensions "Name=BucketName,Value=$bucket" "Name=StorageType,Value=AllStorageTypes" \
         --start-time "$START_TIME" \
         --end-time "$END_TIME" \
         --period "$PERIOD" \
