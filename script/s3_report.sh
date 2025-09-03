@@ -16,8 +16,9 @@ MONTH=$(date +"%m")
 DAY=$(date +"%d")
 OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
 OUTPUT_FILE="${OUTPUT_DIR}/s3_report_$(date +"%Y%m%d-%H%M%S").csv"
-START_DATE=""
-END_DATE=""
+# The following variables are now exported by main_report_runner.sh
+# START_DATE=""
+# END_DATE=""
 PERIOD=86400 # Default to 1 day in seconds
 
 # --- Dependency Check ---
@@ -41,34 +42,9 @@ log "✍️ Preparing output file: $OUTPUT_FILE"
 # Create CSV header
 printf '"Bucket Name","Region","Total Objects","Total Size (Bytes)","Last Modified Date"\n' > "$OUTPUT_FILE"
 
-# Process command-line arguments for date range
-while getopts "b:e:r:h" opt; do
-    case "$opt" in
-        b)
-            START_DATE="$OPTARG"
-            ;;
-        e)
-            END_DATE="$OPTARG"
-            ;;
-        r)
-            IFS=',' read -r -a REGIONS <<< "$OPTARG"
-            ;;
-        h)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
-            exit 0
-            ;;
-        *)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
-            exit 1
-            ;;
-    esac
-    shift
-done
-shift $((OPTIND-1))
-
+# Check if required variables are set by main_report_runner.sh
 if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
-    log "❌ Arguments -b and -e are required."
-    echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
+    log "❌ START_DATE or END_DATE is not set. Please run this script from main_report_runner.sh"
     exit 1
 fi
 
