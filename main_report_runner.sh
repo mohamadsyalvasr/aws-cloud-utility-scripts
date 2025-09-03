@@ -44,6 +44,7 @@ chmod +x ./script/eks_report.sh
 chmod +x ./script/elb_report.sh
 chmod +x ./script/efs_report.sh
 chmod +x ./script/vpc_report.sh
+chmod +x ./script/waf_report.sh
 log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
@@ -59,6 +60,7 @@ REQUIRED_SCRIPTS=(
     "./script/elb_report.sh"
     "./script/efs_report.sh"
     "./script/vpc_report.sh"
+    "./script/waf_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
@@ -167,6 +169,12 @@ if [[ "$vpc" == "1" ]]; then
     log_start "Running vpc_report.sh..."
     ./script/vpc_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "vpc_report.sh finished."
+fi
+
+if [[ "$waf" == "1" ]]; then
+    log_start "Running waf_report.sh..."
+    ./script/waf_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "waf_report.sh finished."
 fi
 
 log_success "All selected reports generated successfully."
