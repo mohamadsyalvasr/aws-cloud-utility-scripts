@@ -39,12 +39,13 @@ log "✍️ Preparing output file: $OUTPUT_FILE"
 printf '"Name","File system ID","Encrypted","Total size","Size in EFS Standard","Size in EFS IA","Size in Archive","File system state","Creation time"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
-    log "Processing Region: \033[1;33m$region\033[0m"
+    log "Processing Region: [1;33m$region[0m"
 
     # Get a list of all EFS file systems in the region
     EFS_DATA=$(aws efs describe-file-systems --region "$region" --output json)
     
-    if [[ "$(echo "$EFS_DATA" | jq '.FileSystems | length')" -gt 0 ]]; then
+    # Use the `// []` trick to provide an empty array if `FileSystems` is null
+    if [[ "$(echo "$EFS_DATA" | jq '.FileSystems // [] | length')" -gt 0 ]]; then
         echo "$EFS_DATA" | jq -c '.FileSystems[]' | while read -r fs_info; do
             NAME=$(echo "$fs_info" | jq -r '([.Tags[]? | select(.Key=="Name").Value] | .[0]) // "N/A"')
             FILE_SYSTEM_ID=$(echo "$fs_info" | jq -r '.FileSystemId')
@@ -52,19 +53,11 @@ for region in "${REGIONS[@]}"; do
             STATE=$(echo "$fs_info" | jq -r '.LifeCycleState')
             CREATED_DATE=$(echo "$fs_info" | jq -r '.CreationTime')
             
-            # Fetch and process size data from the describe command
-            METERED_BYTES=$(aws efs describe-file-system-sizes --region "$region" --file-system-id "$FILE_SYSTEM_ID" --query 'FileSystemSizes[0].Value' --output text)
-            
-            # These values might not be available or are not directly reported by describe-file-system-sizes
-            TOTAL_SIZE="N/A"
-            STANDARD_SIZE="N/A"
-            IA_SIZE="N/A"
-            ARCHIVE_SIZE="N/A"
-            
-            # If metered bytes is available, use it for total size
-            if [[ -n "$METERED_BYTES" ]]; then
-                TOTAL_SIZE="$METERED_BYTES"
-            fi
+            # Extract and process size data from the `describe-file-systems` output
+            TOTAL_SIZE=$(echo "$fs_info" | jq -r '.SizeInBytes.Value // "N/A"')
+            STANDARD_SIZE=$(echo "$fs_info" | jq -r '.SizeInBytes.ValueInStandard // "N/A"')
+            IA_SIZE=$(echo "$fs_info" | jq -r '.SizeInBytes.ValueInInfrequentAccess // "N/A"')
+            ARCHIVE_SIZE="N/A" # This metric is not available in the API response
             
             printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$NAME" \
@@ -81,7 +74,7 @@ for region in "${REGIONS[@]}"; do
         log "  [EFS] No file systems found."
     fi
 
-    log "Region \033[1;33m$region\033[0m Complete."
+    log "Region [1;33m$region[0m Complete."
 done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"
