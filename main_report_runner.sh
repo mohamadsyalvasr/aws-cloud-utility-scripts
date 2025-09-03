@@ -35,7 +35,6 @@ log_success "Permissions set."
 log_start "🔧 Setting execute permissions for all report scripts..."
 chmod +x ./script/aws_ec2_report.sh
 chmod +x ./script/aws_rds_report.sh
-chmod +x ./script/aws_sp_ri_report.sh
 chmod +x ./script/ebs_report.sh
 chmod +x ./script/ebs_utilization_report.sh
 chmod +x ./script/aws_billing_report.sh
