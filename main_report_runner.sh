@@ -104,6 +104,17 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Extract and export START_DATE and END_DATE for scripts that expect them in the environment
+# This is a fix for scripts like s3_report.sh which do not parse CLI arguments.
+for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
+    if [[ "${PASS_THROUGH_ARGS[$i]}" == "-b" ]] || [[ "${PASS_THROUGH_ARGS[$i]}" == "--begin" ]]; then
+        export START_DATE="${PASS_THROUGH_ARGS[$i+1]}"
+    fi
+    if [[ "${PASS_THROUGH_ARGS[$i]}" == "-e" ]] || [[ "${PASS_THROUGH_ARGS[$i]}" == "--end" ]]; then
+        export END_DATE="${PASS_THROUGH_ARGS[$i+1]}"
+    fi
+done
+
 # Run reports based on the configuration file
 if [[ "$inventory" == "1" ]]; then
     log_start "Running aws_inventory.sh..."
@@ -137,7 +148,7 @@ fi
 
 if [[ "$s3" == "1" ]]; then
     log_start "Running s3_report.sh..."
-    ./script/s3_report.sh "${PASS_THROUGH_ARGS[@]}"
+    ./script/s3_report.sh
     log_success "s3_report.sh finished."
 fi
 
