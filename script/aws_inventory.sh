@@ -13,7 +13,11 @@ set -euo pipefail
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 SUM_ALL_EBS=false
 TS=$(date +"%Y%m%d-%H%M%S")
-FILENAME="aws_inventory_${TS}.csv"
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+OUTPUT_DIR="../output/${YEAR}/${MONTH}/${DAY}"
+FILENAME="${OUTPUT_DIR}/aws_inventory_${TS}.csv"
 START_DATE=""
 END_DATE=""
 PERIOD=2592000 # Default to ~30 days in seconds

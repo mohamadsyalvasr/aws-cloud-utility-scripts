@@ -7,7 +7,11 @@ set -euo pipefail
 
 # --- Configuration and Arguments ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
-OUTPUT_FILE="aws_sp_ri_report.csv"
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+OUTPUT_DIR="../output/${YEAR}/${MONTH}/${DAY}"
+OUTPUT_FILE="${OUTPUT_DIR}/aws_sp_ri_report.csv"
 
 usage() {
     cat <<EOF >&2

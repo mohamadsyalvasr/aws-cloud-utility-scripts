@@ -6,7 +6,11 @@
 set -euo pipefail
 
 # --- Configuration and Arguments ---
-OUTPUT_FILE="aws_billing_report_$(date +"%Y%m%d-%H%M%S").csv"
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+OUTPUT_DIR="../output/${YEAR}/${MONTH}/${DAY}"
+OUTPUT_FILE="${OUTPUT_DIR}/aws_billing_report_$(date +"%Y%m%d-%H%M%S").csv"
 START_DATE=""
 END_DATE=""
 

@@ -32,19 +32,48 @@ log_start "🔧 Setting execute permissions for all report scripts..."
 chmod +x ./script/aws_inventory.sh
 chmod +x ./script/aws_sp_ri_report.sh
 chmod +x ./script/ebs_report.sh
+chmod +x ./script/ebs_utilization_report.sh
 chmod +x ./script/aws_billing_report.sh
+chmod +x ./script/s3_report.sh
+chmod +x ./script/elasticache_report.sh
+chmod +x ./script/eks_report.sh
+chmod +x ./script/elb_report.sh
 log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
-if [[ ! -f "./script/aws_inventory.sh" || ! -f "./script/aws_sp_ri_report.sh" || ! -f "./script/ebs_report.sh" || ! -f "./script/aws_billing_report.sh" ]]; then
-    log_error "Error: One or more required scripts are missing. Please ensure all scripts are in the same directory."
-    exit 1
-fi
+REQUIRED_SCRIPTS=(
+    "./script/aws_inventory.sh"
+    "./script/aws_sp_ri_report.sh"
+    "./script/ebs_report.sh"
+    "./script/ebs_utilization_report.sh"
+    "./script/aws_billing_report.sh"
+    "./script/s3_report.sh"
+    "./script/elasticache_report.sh"
+    "./script/eks_report.sh"
+    "./script/elb_report.sh"
+)
+
+for script_path in "${REQUIRED_SCRIPTS[@]}"; do
+    if [[ ! -f "$script_path" ]]; then
+        log_error "Error: Required script not found: $script_path"
+        log_error "Please ensure all scripts are in the correct directory."
+        exit 1
+    fi
+done
 
 if [[ ! -f "./config.ini" ]]; then
     log_error "Error: Configuration file config.ini not found. Please create it."
     exit 1
 fi
+
+# Create a dated output directory structure
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
+log_start "📁 Creating output directory: ${OUTPUT_DIR}/"
+mkdir -p "${OUTPUT_DIR}"
+log_success "✅ Directory created."
 
 # Read configuration from the INI file
 source <(grep = config.ini | sed 's/ *= */=/g')
@@ -72,9 +101,15 @@ if [[ "$inventory" == "1" ]]; then
     log_success "aws_inventory.sh finished."
 fi
 
-if [[ "$ebs" == "1" ]]; then
+if [[ "$ebs_detailed" == "1" ]]; then
     log_start "Running ebs_report.sh..."
     ./script/ebs_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "ebs_report.sh finished."
+fi
+
+if [[ "$ebs_utilization" == "1" ]]; then
+    log_start "Running ebs_report.sh..."
+    ./script/ebs_utilization_report.sh "${PASS_THROUGH_ARGS[@]}"
     log_success "ebs_report.sh finished."
 fi
 
@@ -90,5 +125,36 @@ if [[ "$billing" == "1" ]]; then
     log_success "aws_billing_report.sh finished."
 fi
 
+if [[ "$s3" == "1" ]]; then
+    log_start "Running s3_report.sh..."
+    ./script/s3_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "s3_report.sh finished."
+fi
+
+if [[ "$elasticache" == "1" ]]; then
+    log_start "Running elasticache_report.sh..."
+    ./script/elasticache_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "elasticache_report.sh finished."
+fi
+
+if [[ "$eks" == "1" ]]; then
+    log_start "Running eks_report.sh..."
+    ./script/eks_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "eks_report.sh finished."
+fi
+
+if [[ "$elb" == "1" ]]; then
+    log_start "Running elb_report.sh..."
+    ./script/elb_report.sh "${PASS_THROUGH_ARGS[@]}"
+    log_success "elb_report.sh finished."
+fi
+
 log_success "All selected reports generated successfully."
 log_success "Your reports are now available in the current directory."
+
+
+# --- ZIP the output folder ---
+log_start "📦 Zipping output folder..."
+ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
+zip -r "${ZIP_FILENAME}" "output"
+log_success "✅ All reports have been zipped to: ${ZIP_FILENAME}"
