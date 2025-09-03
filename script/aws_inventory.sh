@@ -6,6 +6,10 @@
 # Exit immediately if a command fails
 set -euo pipefail
 
+log() {
+    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
+}
+
 ########################################
 # CONFIGURATION AND ARGUMENTS
 ########################################

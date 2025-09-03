@@ -5,6 +5,10 @@
 set -euo pipefail
 
 # --- Logging Functions with Status Symbols ---
+log() {
+    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
+}
+
 log_start() {
     echo >&2 -e "➡️  $*"
 }
