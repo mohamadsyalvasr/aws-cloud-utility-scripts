@@ -5,6 +5,7 @@
 set -euo pipefail
 
 # --- Configuration ---
+# Default values, can be overridden by command-line arguments
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
@@ -19,6 +20,56 @@ PERIOD=86400 # Default to 1 day in seconds
 log() {
     echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
+
+# --- Usage function ---
+usage() {
+    cat <<EOF >&2
+Usage: $0 -b <start_date> -e <end_date> [-r regions] [-f filename] [-h]
+
+Options:
+  -b <start_date>  REQUIRED: The start date for the report (YYYY-MM-DD).
+  -e <end_date>    REQUIRED: The end date for the report (YYYY-MM-DD).
+  -r <regions>     Comma-separated list of AWS regions (e.g., "ap-southeast-1,us-east-1").
+                   Default: ${REGIONS[@]}
+  -f <filename>    Custom filename for the output CSV file.
+                   Default: waf_report_<timestamp>.csv
+  -h               Show this help message.
+EOF
+    exit 1
+}
+
+# --- Process command-line arguments ---
+while getopts "b:e:r:f:h" opt; do
+    case "$opt" in
+        b)
+            START_DATE="$OPTARG"
+            ;;
+        e)
+            END_DATE="$OPTARG"
+            ;;
+        r)
+            IFS=',' read -r -a REGIONS <<< "$OPTARG"
+            ;;
+        f)
+            OUTPUT_FILE="$OPTARG"
+            ;;
+        h)
+            usage
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+    log "❌ Arguments -b and -e are required."
+    usage
+fi
+
+START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ")
+END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
 
 # --- Dependency Check ---
 check_dependencies() {
@@ -35,42 +86,10 @@ check_dependencies() {
 }
 
 # --- Main Script ---
-
-# Process command-line arguments for date range
-while getopts "b:e:r:h" opt; do
-    case "$opt" in
-        b)
-            START_DATE="$OPTARG"
-            ;;
-        e)
-            END_DATE="$OPTARG"
-            ;;
-        r)
-            IFS=',' read -r -a REGIONS <<< "$OPTARG"
-            ;;
-        h)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
-            exit 0
-            ;;
-        *)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
-            exit 1
-            ;;
-    esac
-done
-shift $((OPTIND-1))
-
-if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
-    log "❌ Arguments -b and -e are required."
-    echo "Usage: $0 -b <start_date> -e <end_date> [-r <regions>]"
-    exit 1
-fi
-
-START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
-END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
-
 check_dependencies
 log "✍️ Preparing output file: $OUTPUT_FILE"
+
+mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 # Create CSV header with the requested columns
 printf '"Name","ID","Allowed Requests","Blocked Requests","Creation Time","Region"\n' > "$OUTPUT_FILE"
@@ -86,7 +105,12 @@ for region in "${REGIONS[@]}"; do
             NAME=$(echo "$web_acl" | jq -r '.Name')
             ID=$(echo "$web_acl" | jq -r '.Id')
             ARN=$(echo "$web_acl" | jq -r '.ARN')
-            CREATED_DATE="N/A" # Creation time is not in list-web-acls, need to describe for each
+
+            # Get creation time by describing the Web ACL
+            CREATED_DATE="N/A"
+            if CREATED_TIME_RAW=$(aws wafv2 get-web-acl --scope REGIONAL --region "$region" --name "$NAME" --id "$ID" --query 'WebACL.CreationTime' --output text 2>/dev/null); then
+                CREATED_DATE=$CREATED_TIME_RAW
+            fi
 
             # Fetch allowed requests from CloudWatch
             ALLOWED_REQUESTS=$(aws cloudwatch get-metric-statistics --region "$region" \
@@ -98,7 +122,7 @@ for region in "${REGIONS[@]}"; do
                 --period "$PERIOD" \
                 --statistics Sum \
                 --query "Datapoints[0].Sum" \
-                --output text)
+                --output text || echo "0") # Default to 0 if no data
 
             # Fetch blocked requests from CloudWatch
             BLOCKED_REQUESTS=$(aws cloudwatch get-metric-statistics --region "$region" \
@@ -110,13 +134,13 @@ for region in "${REGIONS[@]}"; do
                 --period "$PERIOD" \
                 --statistics Sum \
                 --query "Datapoints[0].Sum" \
-                --output text)
+                --output text || echo "0") # Default to 0 if no data
 
             printf '"%s","%s","%s","%s","%s","%s"\n' \
                 "$NAME" \
                 "$ID" \
-                "${ALLOWED_REQUESTS:-0}" \
-                "${BLOCKED_REQUESTS:-0}" \
+                "${ALLOWED_REQUESTS}" \
+                "${BLOCKED_REQUESTS}" \
                 "$CREATED_DATE" \
                 "$region" >> "$OUTPUT_FILE"
         done
