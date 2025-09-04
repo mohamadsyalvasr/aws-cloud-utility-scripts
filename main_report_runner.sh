@@ -98,7 +98,11 @@ source <(grep = config.ini | sed 's/ *= */=/g')
 PASS_THROUGH_ARGS=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        -r|--regions|-b|--begin|-e|--end|-f|--filename|-s|--sum-ebs) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
+        -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
+        -b|--begin) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export START_DATE="$1" ;;
+        -e|--end) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export END_DATE="$1" ;;
+        -s|--sum-ebs) PASS_THROUGH_ARGS+=("$1") ;;
+        -f|--filename) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
         -h|--help)
             log_start "Usage: $0 <other_args>"
             log_start "  <other_args>: Arguments for the individual scripts (-r, -b, -e, -f, -s)."
@@ -110,106 +114,91 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Extract and export START_DATE and END_DATE for scripts that expect them in the environment
-# This is a fix for scripts like s3_report.sh which do not parse CLI arguments.
-for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
-    if [[ "${PASS_THROUGH_ARGS[$i]}" == "-b" ]] || [[ "${PASS_THROUGH_ARGS[$i]}" == "--begin" ]]; then
-        export START_DATE="${PASS_THROUGH_ARGS[$i+1]}"
-    fi
-    if [[ "${PASS_THROUGH_ARGS[$i]}" == "-e" ]] || [[ "${PASS_THROUGH_ARGS[$i]}" == "--end" ]]; then
-        export END_DATE="${PASS_THROUGH_ARGS[$i+1]}"
-    fi
-done
+# Function to run a report with only the necessary arguments
+run_report_with_args() {
+    local script_path="$1"
+    shift
+    local needed_args="$*"
+    local run_args=()
+
+    for arg in $needed_args; do
+        for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
+            if [[ "${PASS_THROUGH_ARGS[$i]}" == "$arg" ]]; then
+                run_args+=("${PASS_THROUGH_ARGS[$i]}")
+                if [[ "$arg" != "-s" ]]; then # Flags like -s don't have a value
+                    run_args+=("${PASS_THROUGH_ARGS[$i+1]}")
+                fi
+            fi
+        done
+    done
+
+    log_start "Running ${script_path} with arguments: ${run_args[*]}"
+    "${script_path}" "${run_args[@]}"
+    log_success "${script_path} finished."
+}
 
 # Run reports based on the configuration file
 if [[ "$billing" == "1" ]]; then
-    log_start "Running aws_billing_report.sh..."
-    ./script/aws_billing_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_billing_report.sh finished."
+    run_report_with_args "./script/aws_billing_report.sh" "-b -e"
 fi
 
 if [[ "$ebs_detailed" == "1" ]]; then
-    log_start "Running ebs_report.sh..."
-    ./script/ebs_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "ebs_report.sh finished."
+    run_report_with_args "./script/ebs_report.sh" "-r"
 fi
 
 if [[ "$ebs_utilization" == "1" ]]; then
-    log_start "Running ebs_utilization_report.sh..."
-    ./script/ebs_utilization_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "ebs_utilization_report.sh finished."
+    run_report_with_args "./script/ebs_utilization_report.sh" "-r -b -e"
 fi
 
 if [[ "$ec2" == "1" ]]; then
-    log_start "Running aws_ec2_report.sh..."
-    ./script/aws_ec2_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_ec2_report.sh finished."
+    run_report_with_args "./script/aws_ec2_report.sh" "-r -b -e -s"
 fi
 
 if [[ "$efs" == "1" ]]; then
-    log_start "Running efs_report.sh..."
-    ./script/efs_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "efs_report.sh finished."
+    run_report_with_args "./script/efs_report.sh" "-r"
 fi
 
 if [[ "$eks" == "1" ]]; then
-    log_start "Running eks_report.sh..."
-    ./script/eks_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "eks_report.sh finished."
+    run_report_with_args "./script/eks_report.sh" "-r"
 fi
 
 if [[ "$elb" == "1" ]]; then
-    log_start "Running elb_report.sh..."
-    ./script/elb_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "elb_report.sh finished."
+    run_report_with_args "./script/elb_report.sh" "-r"
 fi
 
 if [[ "$elasticache" == "1" ]]; then
-    log_start "Running elasticache_report.sh..."
-    ./script/elasticache_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "elasticache_report.sh finished."
+    run_report_with_args "./script/elasticache_report.sh" "-r"
 fi
 
 if [[ "$rds" == "1" ]]; then
-    log_start "Running aws_rds_report.sh..."
-    ./script/aws_rds_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "aws_rds_report.sh finished."
+    run_report_with_args "./script/aws_rds_report.sh" "-r -b -e"
 fi
 
 if [[ "$s3" == "1" ]]; then
+    # S3 script uses environment variables, no need to pass args
     log_start "Running s3_report.sh..."
     ./script/s3_report.sh
     log_success "s3_report.sh finished."
 fi
 
 if [[ "$sp" == "1" ]]; then
-    log_start "Running aws_sp_report.sh..."
-    ./script/aws_sp_report.sh
-    log_success "aws_sp_report.sh finished."
+    run_report_with_args "./script/aws_sp_report.sh" "-r"
 fi
 
 if [[ "$ri" == "1" ]]; then
-    log_start "Running aws_ri_report.sh..."
-    ./script/aws_ri_report.sh
-    log_success "aws_ri_report.sh finished."
+    run_report_with_args "./script/aws_ri_report.sh" "-r"
 fi
 
 if [[ "$vpc" == "1" ]]; then
-    log_start "Running vpc_report.sh..."
-    ./script/vpc_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "vpc_report.sh finished."
+    run_report_with_args "./script/vpc_report.sh" "-r"
 fi
 
 if [[ "$waf" == "1" ]]; then
-    log_start "Running waf_report.sh..."
-    ./script/waf_report.sh "${PASS_THROUGH_ARGS[@]}"
-    log_success "waf_report.sh finished."
+    run_report_with_args "./script/waf_report.sh" "-r -b -e"
 fi
 
 if [[ "$workspaces" == "1" ]]; then
-    log_start "Running aws_workspaces_report.sh..."
-    ./script/aws_workspaces_report.sh
-    log_success "aws_workspaces_report.sh finished."
+    run_report_with_args "./script/aws_workspaces_report.sh" "-r"
 fi
 
 log_success "All selected reports generated successfully."
