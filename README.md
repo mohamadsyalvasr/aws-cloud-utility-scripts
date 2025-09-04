@@ -10,15 +10,15 @@ This repository contains a set of Bash scripts designed to automate the generati
 - **`aws_ri_report.sh`**: Generates a detailed report on AWS Reserved Instances (RI).
 - **`aws_sp_report.sh`**: Generates a detailed report on AWS Savings Plans.
 - **`aws_workspaces_report.sh`**: Gathers a detailed report on AWS WorkSpaces, including last active time.
-- **`ebs_report.sh`**: Creates a report on EBS volumes with custom columns.
+- **`ebs_report.sh`**: Generates a detailed report on EBS volumes with custom columns.
 - **`ebs_utilization_report.sh`**: Generates a report on EBS volumes, showing attachment status, disk size, and utilization metrics.
-- **`efs_report.sh`**: Gathers a report on all EFS file systems, including size and status details.
-- **`eks_report.sh`**: Gathers a report on all EKS clusters and saves it to an output directory.
-- **`elasticache_report.sh`**: Gathers a report on all ElastiCache clusters and saves it to an output directory.
-- **`elb_report.sh`**: Gathers a report on all Elastic Load Balancers (ELBv2: ALB/NLB/GWLB) across regions into a CSV.
-- **`s3_report.sh`**: Gathers a report on all S3 buckets, using CloudWatch to get the total size.
-- **`vpc_report.sh`**: Gathers a summary report of VPC-related services and their quantities (per region).
-- **`waf_report.sh`**: Gathers a report on all AWS WAF Web ACLs, including allowed and blocked requests.
+- **`efs_report.sh`**: Generates a detailed report on all EFS file systems, including size and status details.
+- **`eks_report.sh`**: Generates a detailed report on all EKS clusters and saves it to an output directory.
+- **`elasticache_report.sh`**: Generates a detailed report on all ElastiCache clusters and saves it to an output directory.
+- **`elb_report.sh`**: Generates a detailed report on all Elastic Load Balancers (ELBv2: ALB/NLB/GWLB) across regions into a CSV.
+- **`s3_report.sh`**: Generates a detailed report on all S3 buckets, using CloudWatch to get the total size.
+- **`vpc_report.sh`**: Generates a summary report of VPC-related services and their quantities (per region).
+- **`waf_report.sh`**: Generates a detailed report on all AWS WAF Web ACLs, including allowed and blocked requests.
 
 ## Configuration
 
