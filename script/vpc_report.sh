@@ -5,6 +5,7 @@
 set -euo pipefail
 
 # --- Configuration ---
+# Default values, can be overridden by command-line arguments
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
@@ -16,6 +17,40 @@ OUTPUT_FILE="${OUTPUT_DIR}/vpc_report_$(date +"%Y%m%d-%H%M%S").csv"
 log() {
   echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
+
+# --- Usage function ---
+usage() {
+    cat <<EOF >&2
+Usage: $0 [-r regions] [-f filename] [-h]
+
+Options:
+  -r <regions>     Comma-separated list of AWS regions (e.g., "ap-southeast-1,us-east-1").
+                   Default: ${REGIONS[@]}
+  -f <filename>    Custom filename for the output CSV file.
+                   Default: vpc_report_<timestamp>.csv
+  -h               Show this help message.
+EOF
+    exit 1
+}
+
+# --- Process command-line arguments ---
+while getopts "r:f:h" opt; do
+    case "$opt" in
+        r)
+            IFS=',' read -r -a REGIONS <<< "$OPTARG"
+            ;;
+        f)
+            OUTPUT_FILE="$OPTARG"
+            ;;
+        h)
+            usage
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+shift $((OPTIND-1))
 
 # --- Dependency Check ---
 check_dependencies() {
@@ -40,7 +75,7 @@ write_row() {
 # --- Main Script ---
 check_dependencies
 log "✍️ Preparing output file: $OUTPUT_FILE"
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 # CSV header
 printf '"Services","Qty","Region"\n' > "$OUTPUT_FILE"
