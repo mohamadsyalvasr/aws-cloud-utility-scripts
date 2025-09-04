@@ -39,7 +39,7 @@ log "✍️ Preparing output file: $OUTPUT_FILE"
 printf '"WorkspaceID","Username","Compute","Root Volume","User Volume","OS","Running mode","Protocol","Status","Last Active","Region"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
-    log "Processing Region: [1;33m$region[0m"
+    log "Processing Region: \033[1;33m$region\033[0m"
 
     WORKSPACES_DATA=$(aws workspaces describe-workspaces --region "$region" --output json)
     
@@ -86,7 +86,7 @@ for region in "${REGIONS[@]}"; do
         done
     fi
 
-    log "Region [1;33m$region[0m Complete."
+    log "Region \033[1;33m$region\033[0m Complete."
 done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"
