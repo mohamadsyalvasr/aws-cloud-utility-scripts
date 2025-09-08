@@ -4,8 +4,7 @@
 
 set -euo pipefail
 
-# --- Configuration ---
-# Default values, can be overridden by command-line arguments
+# --- Configuration and Arguments ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
@@ -33,91 +32,84 @@ EOF
     exit 1
 }
 
-# --- Process command-line arguments ---
-while getopts "r:f:h" opt; do
-    case "$opt" in
-        r)
-            IFS=',' read -r -a REGIONS <<< "$OPTARG"
-            ;;
-        f)
-            OUTPUT_FILE="$OPTARG"
-            ;;
-        h)
-            usage
-            ;;
-        *)
-            usage
-            ;;
-    esac
-done
-shift $((OPTIND-1))
-
 # --- Dependency Check ---
 check_dependencies() {
     log "🔎 Checking dependencies (aws cli, jq)..."
-    if ! command -v aws >/dev/null 2>&1; then
-        log "❌ AWS CLI not found. Please install it first."
-        exit 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        log "❌ jq not found. Please install it first."
+    if ! command -v aws >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        log "❌ Dependencies not met. Please install AWS CLI and jq."
         exit 1
     fi
     log "✅ Dependencies met."
 }
 
-# --- Main Script ---
-check_dependencies
-log "✍️ Preparing output file: $OUTPUT_FILE"
-
-# Create the output directory with the full date path
-log "📁 Creating output directory: ${OUTPUT_DIR}/"
-mkdir -p "${OUTPUT_DIR}"
-log "✅ Directory created."
-
-# Create CSV header with the requested columns
-printf '"Name","Status","Kubernetes version","Support period","Upgrade policy","Date Created","Provider","Region"\n' > "$OUTPUT_FILE"
-
-for region in "${REGIONS[@]}"; do
-    log "Processing Region: \033[1;33m$region\033[0m"
-
-    # Get a list of all EKS clusters in the region
-    EKS_CLUSTERS=$(aws eks list-clusters --region "$region" --query 'clusters' --output json)
+# --- Main Script Logic ---
+main() {
+    check_dependencies
     
-    if [[ "$(echo "$EKS_CLUSTERS" | jq 'length')" -gt 0 ]]; then
-        echo "$EKS_CLUSTERS" | jq -c '.[]' | while read -r cluster_name; do
-            # Remove surrounding quotes from the cluster name
-            CLUSTER_NAME=$(echo "$cluster_name" | tr -d '"')
-            
-            # Get detailed information for each cluster
-            CLUSTER_DETAILS=$(aws eks describe-cluster --region "$region" --name "$CLUSTER_NAME" --output json)
+    while getopts "r:f:h" opt; do
+        case "$opt" in
+            r)
+                IFS=',' read -r -a REGIONS <<< "$OPTARG"
+                ;;
+            f)
+                OUTPUT_FILE="$OPTARG"
+                ;;
+            h)
+                usage
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
 
-            NAME=$(echo "$CLUSTER_DETAILS" | jq -r '.cluster.name')
-            STATUS=$(echo "$CLUSTER_DETAILS" | jq -r '.cluster.status')
-            K8S_VERSION=$(echo "$CLUSTER_DETAILS" | jq -r '.cluster.version')
-            CREATED_DATE=$(echo "$CLUSTER_DETAILS" | jq -r '.cluster.createdAt')
-            
-            # These fields are not directly available and require more complex logic
-            # or manual lookups. Set them to N/A for this simple report.
-            SUPPORT_PERIOD="N/A"
-            UPGRADE_POLICY="N/A"
-            PROVIDER="N/A"
+    log "✍️ Preparing output file: $OUTPUT_FILE"
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
 
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-                "$NAME" \
-                "$STATUS" \
-                "$K8S_VERSION" \
-                "$SUPPORT_PERIOD" \
-                "$UPGRADE_POLICY" \
-                "$CREATED_DATE" \
-                "$PROVIDER" \
-                "$region" >> "$OUTPUT_FILE"
-        done
-    else
-        log "  [EKS] No clusters found."
-    fi
+    # Create CSV header with the requested columns
+    printf '"Name","Status","Kubernetes version","Support period","Upgrade policy","Date Created","Provider","Region"\n' > "$OUTPUT_FILE"
 
-    log "Region \033[1;33m$region\033[0m Complete."
-done
+    for region in "${REGIONS[@]}"; do
+        log "Processing Region: \033[1;33m$region\033[0m"
 
-log "✅ DONE. Report saved to: $OUTPUT_FILE"
+        local eks_clusters=$(aws eks list-clusters --region "$region" --query 'clusters' --output json)
+        
+        if [[ "$(echo "$eks_clusters" | jq 'length')" -gt 0 ]]; then
+            echo "$eks_clusters" | jq -c '.[]' | while read -r cluster_name; do
+                # jq -r already unquotes the string, no need for `tr -d '"'`
+                local cluster_name_clean="${cluster_name}"
+                
+                local cluster_details=$(aws eks describe-cluster --region "$region" --name "$cluster_name_clean" --output json)
+
+                local name=$(echo "$cluster_details" | jq -r '.cluster.name')
+                local status=$(echo "$cluster_details" | jq -r '.cluster.status')
+                local k8s_version=$(echo "$cluster_details" | jq -r '.cluster.version')
+                local created_date=$(echo "$cluster_details" | jq -r '.cluster.createdAt')
+                
+                # These fields are not directly available from the EKS API and would require more complex logic or manual lookup.
+                local support_period="N/A"
+                local upgrade_policy="N/A"
+                local provider="N/A"
+
+                printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+                    "$name" \
+                    "$status" \
+                    "$k8s_version" \
+                    "$support_period" \
+                    "$upgrade_policy" \
+                    "$created_date" \
+                    "$provider" \
+                    "$region" >> "$OUTPUT_FILE"
+            done
+        else
+            log "  [EKS] No clusters found."
+        fi
+
+        log "Region \033[1;33m$region\033[0m Complete."
+    done
+
+    log "✅ DONE. Report saved to: $OUTPUT_FILE"
+}
+
+main "$@"
