@@ -69,7 +69,7 @@ if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
 fi
 
 START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ")
-END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
+END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ")
 
 # --- Dependency Check ---
 check_dependencies() {
