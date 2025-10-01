@@ -36,9 +36,9 @@ install_dependencies() {
     command -v python3 >/dev/null 2>&1 || { echo >&2 "Python 3 is required but not installed. Aborting."; exit 1; }
     command -v pip3 >/dev/null 2>&1 || { echo >&2 "pip3 is required but not installed. Aborting."; exit 1; }
 
-    log_start "Installing Python libraries for CSV to Excel conversion (pandas, openpyxl, xlsxwriter)..."
-    pip3 install pandas openpyxl xlsxwriter --break-system-packages || { log_error "Failed to install Python dependencies."; exit 1; }
-    log_success "Python dependencies installed."
+    log "Installing Python libraries for CSV to Excel conversion (pandas, openpyxl, xlsxwriter)..."
+    pip3 install pandas openpyxl xlsxwriter --break-system-packages || { log "Failed to install Python dependencies."; exit 1; }
+    log "Python dependencies installed."
 }
 
 # Run the installation process
