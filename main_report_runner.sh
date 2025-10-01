@@ -83,14 +83,45 @@ if [[ ! -f "./config.ini" ]]; then
     exit 1
 fi
 
-# Create a dated output directory structure
+# --- PENTING: Pengecekan dan Penghapusan Folder Output Sebelumnya (Interaktif) ---
+OUTPUT_ROOT="output"
+
+if [[ -d "$OUTPUT_ROOT" ]]; then
+    log_start "🚨 Folder output sebelumnya terdeteksi: $OUTPUT_ROOT"
+    
+    # Meminta input pengguna. Opsi -r memastikan input ditangani sebagai string mentah,
+    # dan -p menampilkan prompt.
+    read -r -p "Apakah Anda ingin MENGHAPUS folder output sebelumnya? (y/N): " response
+    
+    # Memeriksa apakah respons adalah 'y' atau 'Y'
+    if [[ "$response" =~ ^([yY])$ ]]; then
+        log_start "🗑️ Menghapus folder output sebelumnya..."
+        rm -rf "$OUTPUT_ROOT"
+        log_success "✅ Folder output sebelumnya berhasil dihapus."
+    else
+        log_start "⚠️ Folder output sebelumnya TIDAK dihapus. Laporan baru akan dibuat di sub-direktori tanggal yang baru."
+    fi
+fi
+
+# 1. Definisikan struktur direktori output (YYYY/MM/DD)
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
-log_start "📁 Creating output directory: ${OUTPUT_DIR}/"
+
+# 2. Tentukan dan Eksport OUTPUT_DIR agar skrip-skrip anak dapat menyimpan file.
+# Skrip akan membuat folder baru (output/YYYY/MM/DD) terlepas dari apakah folder 'output' root dihapus atau tidak.
+export OUTPUT_DIR="${OUTPUT_ROOT}/${YEAR}/${MONTH}/${DAY}"
+
+log_start "📁 Creating clean output directory: ${OUTPUT_DIR}/"
 mkdir -p "${OUTPUT_DIR}"
-log_success "✅ Directory created."
+
+# Cek apakah direktori berhasil dibuat
+if [ $? -eq 0 ]; then
+    log_success "✅ Output directory created: ${OUTPUT_DIR}"
+else
+    log_error "❌ FAILED to create output directory: ${OUTPUT_DIR}"
+    exit 1
+fi
 
 # Read configuration from the INI file
 source <(grep = config.ini | sed 's/ *= */=/g')
