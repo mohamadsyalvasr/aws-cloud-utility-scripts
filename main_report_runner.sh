@@ -250,5 +250,13 @@ fi
 # --- ZIP the output folder ---
 log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
+
+# The 'zip' command is executed here
 zip -r "${ZIP_FILENAME}" "output"
+
 log_success "✅ All reports have been zipped to: ${ZIP_FILENAME}"
+
+# --- Added: Display final location and copy/paste path ---
+CURRENT_DIR=$(pwd)
+log_success "📂 Report Location (Current Directory): ${CURRENT_DIR}"
+log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
