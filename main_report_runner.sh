@@ -83,39 +83,37 @@ if [[ ! -f "./config.ini" ]]; then
     exit 1
 fi
 
-# --- PENTING: Pengecekan dan Penghapusan Folder Output Sebelumnya (Interaktif) ---
+# --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
 OUTPUT_ROOT="output"
 
 if [[ -d "$OUTPUT_ROOT" ]]; then
-    log_start "🚨 Folder output sebelumnya terdeteksi: $OUTPUT_ROOT"
+    log_start "🚨 Previous output folder detected: $OUTPUT_ROOT"
     
-    # Meminta input pengguna. Opsi -r memastikan input ditangani sebagai string mentah,
-    # dan -p menampilkan prompt.
-    read -r -p "Apakah Anda ingin MENGHAPUS folder output sebelumnya? (y/N): " response
+    # Prompt the user for input. The -r option ensures raw input, -p displays the prompt.
+    read -r -p "Do you want to DELETE the previous output folder? (y/N): " response
     
-    # Memeriksa apakah respons adalah 'y' atau 'Y'
+    # Check if the response is 'y' or 'Y'
     if [[ "$response" =~ ^([yY])$ ]]; then
-        log_start "🗑️ Menghapus folder output sebelumnya..."
+        log_start "🗑️ Deleting previous output folder..."
         rm -rf "$OUTPUT_ROOT"
-        log_success "✅ Folder output sebelumnya berhasil dihapus."
+        log_success "✅ Previous output folder successfully deleted."
     else
-        log_start "⚠️ Folder output sebelumnya TIDAK dihapus. Laporan baru akan dibuat di sub-direktori tanggal yang baru."
+        log_start "⚠️ Previous output folder NOT deleted. New reports will be created in a new date sub-directory."
     fi
 fi
 
-# 1. Definisikan struktur direktori output (YYYY/MM/DD)
+# 1. Define the output directory structure (YYYY/MM/DD)
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
 
-# 2. Tentukan dan Eksport OUTPUT_DIR agar skrip-skrip anak dapat menyimpan file.
-# Skrip akan membuat folder baru (output/YYYY/MM/DD) terlepas dari apakah folder 'output' root dihapus atau tidak.
+# 2. Define and EXPORT OUTPUT_DIR to ensure child scripts (in ./script/) can save their files here.
 export OUTPUT_DIR="${OUTPUT_ROOT}/${YEAR}/${MONTH}/${DAY}"
 
 log_start "📁 Creating clean output directory: ${OUTPUT_DIR}/"
 mkdir -p "${OUTPUT_DIR}"
 
-# Cek apakah direktori berhasil dibuat
+# Check if the directory was successfully created
 if [ $? -eq 0 ]; then
     log_success "✅ Output directory created: ${OUTPUT_DIR}"
 else
