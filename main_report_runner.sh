@@ -48,6 +48,7 @@ chmod +x ./script/efs_report.sh
 chmod +x ./script/vpc_report.sh
 chmod +x ./script/waf_report.sh
 chmod +x ./script/aws_workspaces_report.sh
+chmod +x ./combine_csv.py
 log_success "✅ Permissions set."
 
 # Check if the required scripts and config file exist
@@ -202,7 +203,20 @@ if [[ "$workspaces" == "1" ]]; then
 fi
 
 log_success "All selected reports generated successfully."
-log_success "Your reports are now available in the current directory."
+# log_success "Your reports are now available in the current directory." # Baris ini dihapus atau diubah karena Excel belum dibuat
+
+# --- GABUNGKAN CSV KE EXCEL ---
+log_start "✨ Combining CSV reports into a single Excel file..."
+# Panggil skrip Python dengan direktori output sebagai argumen
+python3 ./combine_csv.py "${OUTPUT_DIR}"
+# Cek apakah eksekusi Python berhasil
+if [ $? -eq 0 ]; then
+    log_success "✅ CSV reports successfully combined into Excel: ${OUTPUT_DIR}/Combined_AWS_Reports.xlsx"
+else
+    log_error "❌ FAILED to combine CSV reports into Excel."
+    # Kita tetap melanjutkan ke zipping atau keluar, tergantung kebutuhan Anda.
+fi
+# ------------------------------
 
 # --- ZIP the output folder ---
 log_start "📦 Zipping output folder..."
