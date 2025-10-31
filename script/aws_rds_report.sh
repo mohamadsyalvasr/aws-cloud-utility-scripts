@@ -86,8 +86,8 @@ check_dependencies() {
 check_dependencies
 log "✍️ Preparing output file: $FILENAME"
 
-# Create CSV header
-printf '"Name","Instance ID","Instance state","Type","Engine","Instance type","Elastic IP","Launch time","vCPUs","Memory (GiB)","Disk (GiB)","Average CPU %%","Average Memory %%","Region"\n' > "$FILENAME"
+# Create CSV header (UPDATED to include Used Disk, Read Latency, Write Latency)
+printf '"Name","Instance ID","Instance state","Type","Engine","Instance type","Elastic IP","Launch time","vCPUs","Memory (GiB)","Disk (GiB)","Used Disk (GiB)","Average CPU %%","Average Memory %%","Average Read Latency (s)","Average Write Latency (s)","Region"\n' > "$FILENAME"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -135,6 +135,8 @@ for region in "${REGIONS[@]}"; do
             VCPU=$(echo "$SPECS" | cut -d',' -f1)
             MEM_GIB=$(echo "$SPECS" | cut -d',' -f2)
 
+            # --- CloudWatch Metrics ---
+
             CPU_UTIL=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/RDS \
                 --metric-name CPUUtilization \
@@ -157,6 +159,45 @@ for region in "${REGIONS[@]}"; do
                 --query "Datapoints[0].Average" \
                 --output text)
             
+            # New: Average Read Latency (s)
+            READ_LATENCY=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace AWS/RDS \
+                --metric-name ReadLatency \
+                --dimensions Name=DBInstanceIdentifier,Value="$ID" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
+
+            # New: Average Write Latency (s)
+            WRITE_LATENCY=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace AWS/RDS \
+                --metric-name WriteLatency \
+                --dimensions Name=DBInstanceIdentifier,Value="$ID" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
+            
+            # New: Free Storage Space (in Bytes)
+            FREE_STORAGE_BYTES=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace AWS/RDS \
+                --metric-name FreeStorageSpace \
+                --dimensions Name=DBInstanceIdentifier,Value="$ID" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
+
+            # --- Calculations ---
+            
+            # 1. Average Memory Utilization (%)
             if [[ -n "$MEM_GIB" && "$MEM_GIB" != "N/A" ]]; then
                 TOTAL_MEMORY_BYTES=$(echo "scale=0; $MEM_GIB * 1073741824" | bc)
                 AVG_MEMORY_PERCENT=$(echo "scale=2; (1 - (${FREE_MEM:-0} / ${TOTAL_MEMORY_BYTES:-1})) * 100" | bc)
@@ -164,7 +205,24 @@ for region in "${REGIONS[@]}"; do
                 AVG_MEMORY_PERCENT="N/A"
             fi
             
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            # 2. Used Disk Capacity (GiB)
+            # AllocatedStorage is in GiB. FreeStorageSpace is in Bytes.
+            if [[ -n "$FREE_STORAGE_BYTES" && "$FREE_STORAGE_BYTES" != "null" ]]; then
+                # Convert FreeStorageSpace (Bytes) to GiB
+                FREE_STORAGE_GIB=$(echo "scale=2; $FREE_STORAGE_BYTES / 1073741824" | bc)
+                # Calculate Used Disk (GiB) = Allocated - Free
+                USED_DISK_GIB=$(echo "scale=2; $DISK_GIB - $FREE_STORAGE_GIB" | bc)
+                # Prevent negative output due to potential data inconsistency or precision issues
+                if (( $(echo "$USED_DISK_GIB < 0" | bc -l) )); then
+                    USED_DISK_GIB=0
+                fi
+            else
+                USED_DISK_GIB="N/A"
+            fi
+            
+            # --- Print to CSV (UPDATED to include new metrics) ---
+
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$NAME" \
                 "$ID" \
                 "$STATE" \
@@ -176,8 +234,11 @@ for region in "${REGIONS[@]}"; do
                 "$VCPU" \
                 "$MEM_GIB" \
                 "$DISK_GIB" \
+                "${USED_DISK_GIB:-N/A}" \
                 "${CPU_UTIL:-N/A}" \
                 "${AVG_MEMORY_PERCENT:-N/A}" \
+                "${READ_LATENCY:-N/A}" \
+                "${WRITE_LATENCY:-N/A}" \
                 "$region" >> "$FILENAME"
         done < <(echo "$RDS_DATA" | jq -c '.[]')
     else
@@ -187,4 +248,4 @@ for region in "${REGIONS[@]}"; do
     log "Region \033[1;33m$region\033[0m Complete."
 done
 
-log "✅ DONE. Results saved to: $FILENAME"
+log "✅ DONE. Results saved to: $FILENAME"  
