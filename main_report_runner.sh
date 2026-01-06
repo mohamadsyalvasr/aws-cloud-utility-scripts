@@ -292,6 +292,10 @@ python3 ./combine_csv.py "${OUTPUT_DIR}"
 # Cek apakah eksekusi Python berhasil
 if [ $? -eq 0 ]; then
     log_success "✅ CSV reports successfully combined into Excel: ${OUTPUT_DIR}/Combined_AWS_Reports.xlsx"
+    
+    # Copy file Excel ke root directory (lokasi zip berada)
+    cp "${OUTPUT_DIR}/Combined_AWS_Reports.xlsx" "./Combined_AWS_Reports.xlsx"
+    log_success "✅ Combined_AWS_Reports.xlsx copied to current directory."
 else
     log_error "❌ FAILED to combine CSV reports into Excel."
     # Kita tetap melanjutkan ke zipping atau keluar, tergantung kebutuhan Anda.
@@ -310,4 +314,10 @@ log_success "✅ All reports have been zipped to: ${ZIP_FILENAME}"
 # --- Added: Display final location and copy/paste path ---
 CURRENT_DIR=$(pwd)
 log_success "📂 Report Location (Current Directory): ${CURRENT_DIR}"
-log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
+log_success "� Zip Archive Available: ${CURRENT_DIR}/${ZIP_FILENAME}"
+
+if [ -f "./Combined_AWS_Reports.xlsx" ]; then
+    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/Combined_AWS_Reports.xlsx"
+else
+    log_success "�📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
+fi
