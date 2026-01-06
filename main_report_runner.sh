@@ -48,6 +48,14 @@ chmod +x ./script/efs_report.sh
 chmod +x ./script/vpc_report.sh
 chmod +x ./script/waf_report.sh
 chmod +x ./script/aws_workspaces_report.sh
+chmod +x ./script/aws_workspaces_report.sh
+chmod +x ./script/iam_report.sh
+chmod +x ./script/lambda_report.sh
+chmod +x ./script/cloudfront_report.sh
+chmod +x ./script/dynamodb_report.sh
+chmod +x ./script/asg_report.sh
+chmod +x ./script/ecs_report.sh
+chmod +x ./script/vpn_report.sh
 chmod +x ./combine_csv.py
 log_success "✅ Permissions set."
 
@@ -68,6 +76,15 @@ REQUIRED_SCRIPTS=(
     "./script/aws_sp_report.sh"
     "./script/aws_ri_report.sh"
     "./script/aws_workspaces_report.sh"
+    "./script/aws_ri_report.sh"
+    "./script/aws_workspaces_report.sh"
+    "./script/iam_report.sh"
+    "./script/lambda_report.sh"
+    "./script/cloudfront_report.sh"
+    "./script/dynamodb_report.sh"
+    "./script/asg_report.sh"
+    "./script/ecs_report.sh"
+    "./script/vpn_report.sh"
 )
 
 for script_path in "${REQUIRED_SCRIPTS[@]}"; do
@@ -84,10 +101,20 @@ if [[ ! -f "./config.ini" ]]; then
 fi
 
 # --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
-OUTPUT_ROOT="output"
+# --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
+OUTPUT_ROOT="export"
 
-if [[ -d "$OUTPUT_ROOT" ]]; then
-    log_start "🚨 Previous output folder detected: $OUTPUT_ROOT"
+# 1. Define the output current date variables
+YEAR=$(date +"%Y")
+MONTH=$(date +"%m")
+DAY=$(date +"%d")
+
+TODAY_DIR="aws-cloud-report-${YEAR}-${MONTH}-${DAY}"
+# 2. Define and EXPORT OUTPUT_DIR to ensure child scripts (in ./script/) can save their files here.
+export OUTPUT_DIR="${OUTPUT_ROOT}/${TODAY_DIR}"
+
+if [[ -d "$OUTPUT_DIR" ]]; then
+    log_start "🚨 Previous output folder detected: $OUTPUT_DIR"
     
     # Prompt the user for input. The -r option ensures raw input, -p displays the prompt.
     read -r -p "Do you want to DELETE the previous output folder? (y/N): " response
@@ -95,20 +122,12 @@ if [[ -d "$OUTPUT_ROOT" ]]; then
     # Check if the response is 'y' or 'Y'
     if [[ "$response" =~ ^([yY])$ ]]; then
         log_start "🗑️ Deleting previous output folder..."
-        rm -rf "$OUTPUT_ROOT"
+        rm -rf "$OUTPUT_DIR"
         log_success "✅ Previous output folder successfully deleted."
     else
-        log_start "⚠️ Previous output folder NOT deleted. New reports will be created in a new date sub-directory."
+        log_start "⚠️ Previous output folder NOT deleted. Reports might function unexpectedly if files exist."
     fi
 fi
-
-# 1. Define the output directory structure (YYYY/MM/DD)
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-
-# 2. Define and EXPORT OUTPUT_DIR to ensure child scripts (in ./script/) can save their files here.
-export OUTPUT_DIR="${OUTPUT_ROOT}/${YEAR}/${MONTH}/${DAY}"
 
 log_start "📁 Creating clean output directory: ${OUTPUT_DIR}/"
 mkdir -p "${OUTPUT_DIR}"
@@ -231,6 +250,38 @@ if [[ "$workspaces" == "1" ]]; then
     run_report_with_args "./script/aws_workspaces_report.sh" "-r"
 fi
 
+if [[ "$iam" == "1" ]]; then
+    log_start "Running iam_report.sh..."
+    ./script/iam_report.sh
+    log_success "iam_report.sh finished."
+fi
+
+if [[ "$lambda" == "1" ]]; then
+    run_report_with_args "./script/lambda_report.sh" "-r"
+fi
+
+if [[ "$cloudfront" == "1" ]]; then
+    log_start "Running cloudfront_report.sh..."
+    ./script/cloudfront_report.sh
+    log_success "cloudfront_report.sh finished."
+fi
+
+if [[ "$dynamodb" == "1" ]]; then
+    run_report_with_args "./script/dynamodb_report.sh" "-r"
+fi
+
+if [[ "$asg" == "1" ]]; then
+    run_report_with_args "./script/asg_report.sh" "-r"
+fi
+
+if [[ "$ecs" == "1" ]]; then
+    run_report_with_args "./script/ecs_report.sh" "-r"
+fi
+
+if [[ "$vpn" == "1" ]]; then
+    run_report_with_args "./script/vpn_report.sh" "-r"
+fi
+
 log_success "All selected reports generated successfully."
 # log_success "Your reports are now available in the current directory." # Baris ini dihapus atau diubah karena Excel belum dibuat
 
@@ -252,7 +303,7 @@ log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
 
 # The 'zip' command is executed here
-zip -r "${ZIP_FILENAME}" "output"
+zip -r "${ZIP_FILENAME}" "${OUTPUT_DIR}"
 
 log_success "✅ All reports have been zipped to: ${ZIP_FILENAME}"
 
