@@ -19,6 +19,13 @@ This repository contains a set of Bash scripts designed to automate the generati
 - **`s3_report.sh`**: Generates a detailed report on all S3 buckets, using CloudWatch to get the total size.
 - **`vpc_report.sh`**: Generates a summary report of VPC-related services and their quantities (per region).
 - **`waf_report.sh`**: Generates a detailed report on all AWS WAF Web ACLs, including allowed and blocked requests.
+- **`iam_report.sh`**: (NEW) Gathers a report on IAM Users (Global).
+- **`lambda_report.sh`**: (NEW) Gathers a report on Lambda functions.
+- **`cloudfront_report.sh`**: (NEW) Gathers a report on CloudFront Distributions (Global).
+- **`dynamodb_report.sh`**: (NEW) Gathers a report on DynamoDB tables.
+- **`asg_report.sh`**: (NEW) Gathers a report on Auto Scaling Groups.
+- **`ecs_report.sh`**: (NEW) Gathers a report on ECS Clusters and Services.
+- **`vpn_report.sh`**: (NEW) Gathers a report on Site-to-Site VPN connections.
 
 ## Configuration
 
@@ -46,6 +53,13 @@ ri=0
 vpc=0
 waf=0
 workspaces=0
+iam=1
+lambda=1
+cloudfront=1
+dynamodb=1
+asg=1
+ecs=1
+vpn=1
 
 ```
 
@@ -90,6 +104,7 @@ The `main_report_runner.sh` script accepts the following arguments, which it wil
 
 ### Output
 
-The script will create a date-based output directory and save all CSV report files within it. After all reports are generated, the script will compress the output folder into a single ZIP file.
-
-Example ZIP file name: `aws_reports_2025-09-04.zip`.
+-   **Directory Structure**: The script creates a dedicated folder for each day's run: `export/aws-cloud-report-YYYY-MM-DD/`.
+-   **Files**: Inside this folder, you will find individual CSV files for each generated report (e.g., `aws_ec2_report.csv`, `iam_report.csv`).
+-   **Excel Combine**: The script automatically combines all generated CSV files into a single Excel file named `Combined_AWS_Reports.xlsx` within the same export folder. This Excel file includes formatted headers and borders for better readability.
+-   **Zip Archive**: Finally, the export folder is compressed into a ZIP file (e.g., `aws_reports_2025-08-01.zip`) in the current directory for easy sharing.

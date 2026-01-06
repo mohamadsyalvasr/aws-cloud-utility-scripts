@@ -36,8 +36,12 @@ def combine_csv_to_excel_single_sheet():
             
             # Format untuk header data dan baris pemisah
             source_header_format = workbook.add_format({'bold': True, 'bg_color': '#DDEBF7', 'border': 1}) # Warna Biru Muda
-            separator_format = workbook.add_format({'fg_color': '#FFEB9C'}) # Warna Kuning Muda untuk pemisah
+            separator_format = workbook.add_format({'fg_color': '#FFEB9C', 'border': 1}) # Warna Kuning Muda
             
+            # Format untuk header tabel dan data
+            table_header_format = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#F2F2F2'})
+            data_format = workbook.add_format({'border': 1})
+
             startrow = 0
             
             for csv_file in all_csv_files:
@@ -61,16 +65,20 @@ def combine_csv_to_excel_single_sheet():
                 # Baris penulisan data DataFrame dimulai 1 baris di bawah baris pemisah/label
                 data_start_row = startrow + 1
                 
-                # 2. Tulis DataFrame ke Excel
-                # header=True: Menulis nama kolom
-                # index=False: Tidak menulis indeks Pandas (nomor baris)
-                df.to_excel(
-                    writer, 
-                    sheet_name=sheet_name, 
-                    startrow=data_start_row, 
-                    header=True, 
-                    index=False
-                )
+                # 2. Tulis Header Tabel Manually
+                for col_num, value in enumerate(df.columns.values):
+                     worksheet.write(data_start_row, col_num, value, table_header_format)
+
+                # 3. Tulis Data Tabel Manually
+                # Mengonversi df ke list of lists/records untuk iterasi
+                # fillna('') untuk menghindari NaN di Excel
+                data_rows = df.fillna('').values.tolist()
+                
+                current_row = data_start_row + 1
+                for row_data in data_rows:
+                    for col_num, value in enumerate(row_data):
+                        worksheet.write(current_row, col_num, value, data_format)
+                    current_row += 1
                 
                 # Hitung baris berikutnya:
                 # data_start_row (baris awal data) 

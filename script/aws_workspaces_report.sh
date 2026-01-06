@@ -9,8 +9,8 @@ REGIONS=("ap-southeast-1" "ap-southeast-3")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
-OUTPUT_FILE="${OUTPUT_DIR}/aws_workspaces_report_$(date +"%Y%m%d-%H%M%S").csv"
+OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+OUTPUT_FILE="${OUTPUT_DIR}/aws_workspaces_report.csv"
 
 # --- Logging Function ---
 log() {

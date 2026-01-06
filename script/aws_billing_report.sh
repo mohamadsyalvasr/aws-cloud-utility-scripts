@@ -9,8 +9,8 @@ set -euo pipefail
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_DIR="../output/${YEAR}/${MONTH}/${DAY}"
-OUTPUT_FILE="${OUTPUT_DIR}/aws_billing_report_$(date +"%Y%m%d-%H%M%S").csv"
+OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+OUTPUT_FILE="${OUTPUT_DIR}/aws_billing_report.csv"
 START_DATE=""
 END_DATE=""
 

@@ -10,12 +10,12 @@ log() {
 
 # --- Configuration and Arguments ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
-TS=$(date +"%Y%m%d-%H%M%S")
+# TS=$(date +"%Y%m%d-%H%M%S")
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-OUTPUT_DIR="output/${YEAR}/${MONTH}/${DAY}"
-FILENAME="${OUTPUT_DIR}/aws_rds_report_${TS}.csv"
+OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+FILENAME="${OUTPUT_DIR}/aws_rds_report.csv"
 START_DATE=""
 END_DATE=""
 PERIOD=2592000 # Default to ~30 days in seconds
@@ -248,4 +248,4 @@ for region in "${REGIONS[@]}"; do
     log "Region \033[1;33m$region\033[0m Complete."
 done
 
-log "✅ DONE. Results saved to: $FILENAME"  
+log "✅ DONE. Results saved to: $FILENAME"
