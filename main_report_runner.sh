@@ -101,7 +101,6 @@ if [[ ! -f "./config.ini" ]]; then
 fi
 
 # --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
-# --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
 OUTPUT_ROOT="export"
 
 # 1. Define the output current date variables
@@ -187,98 +186,98 @@ run_report_with_args() {
 }
 
 # Run reports based on the configuration file
-if [[ "$billing" == "1" ]]; then
+if [[ "${billing:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_billing_report.sh" "-b -e"
 fi
 
-if [[ "$ebs_detailed" == "1" ]]; then
+if [[ "${ebs_detailed:-0}" == "1" ]]; then
     run_report_with_args "./script/ebs_report.sh" "-r"
 fi
 
-if [[ "$ebs_utilization" == "1" ]]; then
+if [[ "${ebs_utilization:-0}" == "1" ]]; then
     run_report_with_args "./script/ebs_utilization_report.sh" "-r -b -e"
 fi
 
-if [[ "$ec2" == "1" ]]; then
+if [[ "${ec2:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_ec2_report.sh" "-r -b -e -s"
 fi
 
-if [[ "$efs" == "1" ]]; then
+if [[ "${efs:-0}" == "1" ]]; then
     run_report_with_args "./script/efs_report.sh" "-r"
 fi
 
-if [[ "$eks" == "1" ]]; then
+if [[ "${eks:-0}" == "1" ]]; then
     run_report_with_args "./script/eks_report.sh" "-r"
 fi
 
-if [[ "$elb" == "1" ]]; then
+if [[ "${elb:-0}" == "1" ]]; then
     run_report_with_args "./script/elb_report.sh" "-r"
 fi
 
-if [[ "$elasticache" == "1" ]]; then
+if [[ "${elasticache:-0}" == "1" ]]; then
     run_report_with_args "./script/elasticache_report.sh" "-r"
 fi
 
-if [[ "$rds" == "1" ]]; then
+if [[ "${rds:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_rds_report.sh" "-r -b -e"
 fi
 
-if [[ "$s3" == "1" ]]; then
+if [[ "${s3:-0}" == "1" ]]; then
     # S3 script uses environment variables, no need to pass args
     log_start "Running s3_report.sh..."
     ./script/s3_report.sh
     log_success "s3_report.sh finished."
 fi
 
-if [[ "$sp" == "1" ]]; then
+if [[ "${sp:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_sp_report.sh" "-r"
 fi
 
-if [[ "$ri" == "1" ]]; then
+if [[ "${ri:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_ri_report.sh" "-r"
 fi
 
-if [[ "$vpc" == "1" ]]; then
+if [[ "${vpc:-0}" == "1" ]]; then
     run_report_with_args "./script/vpc_report.sh" "-r"
 fi
 
-if [[ "$waf" == "1" ]]; then
+if [[ "${waf:-0}" == "1" ]]; then
     run_report_with_args "./script/waf_report.sh" "-r -b -e"
 fi
 
-if [[ "$workspaces" == "1" ]]; then
+if [[ "${workspaces:-0}" == "1" ]]; then
     run_report_with_args "./script/aws_workspaces_report.sh" "-r"
 fi
 
-if [[ "$iam" == "1" ]]; then
+if [[ "${iam:-0}" == "1" ]]; then
     log_start "Running iam_report.sh..."
     ./script/iam_report.sh
     log_success "iam_report.sh finished."
 fi
 
-if [[ "$lambda" == "1" ]]; then
+if [[ "${lambda:-0}" == "1" ]]; then
     run_report_with_args "./script/lambda_report.sh" "-r"
 fi
 
-if [[ "$cloudfront" == "1" ]]; then
+if [[ "${cloudfront:-0}" == "1" ]]; then
     log_start "Running cloudfront_report.sh..."
     ./script/cloudfront_report.sh
     log_success "cloudfront_report.sh finished."
 fi
 
-if [[ "$dynamodb" == "1" ]]; then
+if [[ "${dynamodb:-0}" == "1" ]]; then
     run_report_with_args "./script/dynamodb_report.sh" "-r"
 fi
 
-if [[ "$asg" == "1" ]]; then
+if [[ "${asg:-0}" == "1" ]]; then
     run_report_with_args "./script/asg_report.sh" "-r"
 fi
 
-if [[ "$ecs" == "1" ]]; then
+if [[ "${ecs:-0}" == "1" ]]; then
     run_report_with_args "./script/ecs_report.sh" "-r"
 fi
 
-if [[ "$vpn" == "1" ]]; then
+if [[ "${vpn:-0}" == "1" ]]; then
     run_report_with_args "./script/vpn_report.sh" "-r"
 fi
 
