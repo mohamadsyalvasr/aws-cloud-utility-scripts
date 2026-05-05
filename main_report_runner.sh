@@ -367,29 +367,37 @@ log_success "All report tasks completed."
 echo "--------------------------------------------------"
 echo "             AWS REPORTS SUMMARY                  "
 echo "--------------------------------------------------"
-TOTAL_TASKS=${#TASKS[@]}
+TOTAL_TASKS="${#TASKS[@]}"
 
-# Count results safely (handle case where no .status files exist)
+# Count results safely using simple file counting
 SUCCESS_COUNT=0
 FAILED_COUNT=0
-if ls "${RESULT_DIR}"/*.status >/dev/null 2>&1; then
-    SUCCESS_COUNT=$(grep -rl "SUCCESS" "${RESULT_DIR}/" 2>/dev/null | wc -l)
-    FAILED_COUNT=$(grep -rl "FAILED" "${RESULT_DIR}/" 2>/dev/null | wc -l)
-fi
+shopt -s nullglob
+for f in "${RESULT_DIR}"/*.status; do
+    content=$(cat "$f")
+    if [[ "$content" == "SUCCESS" ]]; then
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    elif [[ "$content" == "FAILED" ]]; then
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
+done
+shopt -u nullglob
 
 echo "Total Reports Attempted: $TOTAL_TASKS"
-echo "✅ Successful: $SUCCESS_COUNT"
-echo "❌ Failed:     $FAILED_COUNT"
+echo "Successful: $SUCCESS_COUNT"
+echo "Failed:     $FAILED_COUNT"
 
 if [[ $FAILED_COUNT -gt 0 ]]; then
     echo ""
     echo "Failed Reports List:"
+    shopt -s nullglob
     for f in "${RESULT_DIR}"/*.status; do
-        if [[ -f "$f" ]] && grep -q "FAILED" "$f"; then
+        if [[ "$(cat "$f")" == "FAILED" ]]; then
             task_file=$(basename "$f" .status)
             echo " - ${task_file//_/ }"
         fi
     done
+    shopt -u nullglob
 fi
 echo "--------------------------------------------------"
 
