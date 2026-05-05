@@ -43,18 +43,15 @@ printf '"ClusterName","Status","RunningTasksCount","PendingTasksCount","ActiveSe
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
     
-    # List clusters (returns ARNs) - use --no-paginate to get all
-    CLUSTER_ARNS=$(aws ecs list-clusters --region "$region" --query "clusterArns[]" --output text --no-paginate)
+    # List clusters (returns ARNs)
+    CLUSTER_ARNS=$(aws ecs list-clusters --region "$region" --query "clusterArns[]" --output text)
     
     if [ -n "$CLUSTER_ARNS" ] && [ "$CLUSTER_ARNS" != "None" ]; then
-        # Describe clusters in batches of 100 (API limit)
-        ARNS_ARRAY=($CLUSTER_ARNS)
-        BATCH_SIZE=100
-        for ((i=0; i<${#ARNS_ARRAY[@]}; i+=BATCH_SIZE)); do
-            BATCH=("${ARNS_ARRAY[@]:i:BATCH_SIZE}")
-            CLUSTERS_DATA=$(aws ecs describe-clusters --region "$region" --clusters "${BATCH[@]}" --output json)
-            echo "$CLUSTERS_DATA" | jq -r --arg r "$region" '.clusters[] | [.clusterName, .status, .runningTasksCount, .pendingTasksCount, .activeServicesCount, $r] | @csv' >> "$OUTPUT_FILE"
-        done
+        # Describe clusters (batch up to 100) - for simplicity, passing all ARNs (assuming < 100 for now)
+        # IFS handled by shell expansion
+        CLUSTERS_DATA=$(aws ecs describe-clusters --region "$region" --clusters $CLUSTER_ARNS --output json)
+        
+        echo "$CLUSTERS_DATA" | jq -r --arg r "$region" '.clusters[] | [.clusterName, .status, .runningTasksCount, .pendingTasksCount, .activeServicesCount, $r] | @csv' >> "$OUTPUT_FILE"
     else
         log "  [ECS] No clusters found."
     fi

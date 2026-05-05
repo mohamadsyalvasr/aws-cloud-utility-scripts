@@ -43,8 +43,8 @@ printf '"TableName","TableStatus","ItemCount","TableSizeBytes","CreationDateTime
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
     
-    # List tables (--no-paginate to get all tables)
-    TABLE_NAMES=$(aws dynamodb list-tables --region "$region" --query "TableNames[]" --output text --no-paginate)
+    # List tables
+    TABLE_NAMES=$(aws dynamodb list-tables --region "$region" --query "TableNames[]" --output text)
     
     if [ -n "$TABLE_NAMES" ] && [ "$TABLE_NAMES" != "None" ]; then
         for table in $TABLE_NAMES; do

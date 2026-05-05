@@ -102,7 +102,7 @@ for region in "${REGIONS[@]}"; do
         
         log "  [RDS] Caching specs for engines: ${UNIQUE_ENGINES[*]}..."
         for engine in "${UNIQUE_ENGINES[@]}"; do
-            CLASS_SPECS=$(aws rds describe-orderable-db-instance-options --region "$region" --engine "$engine" --query 'OrderableDBInstanceOptions[].{Class:DBInstanceClass, Vcpu:Vcpu, Mem:Memory}' --output json --no-paginate 2>/dev/null || echo "[]")
+            CLASS_SPECS=$(aws rds describe-orderable-db-instance-options --region "$region" --engine "$engine" --query 'OrderableDBInstanceOptions[].{Class:DBInstanceClass, Vcpu:Vcpu, Mem:Memory}' --output json 2>/dev/null || echo "[]")
             while IFS= read -r spec; do
                 class=$(echo "$spec" | jq -r '.Class')
                 vcpu=$(echo "$spec" | jq -r '.Vcpu')
@@ -145,7 +145,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
 
             FREE_MEM=$(aws cloudwatch get-metric-statistics --region "$region" \
@@ -156,7 +156,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
             
             # New: Average Read Latency (s)
@@ -168,7 +168,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
 
             # New: Average Write Latency (s)
@@ -180,7 +180,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
             
             # New: Free Storage Space (in Bytes)
@@ -192,7 +192,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
 
             # --- Calculations ---

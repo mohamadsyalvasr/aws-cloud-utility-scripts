@@ -76,7 +76,7 @@ fi
 log "✅ Dependencies met."
 
 log "✍️ Preparing output file: $OUTPUT_FILE"
-printf '"Volume ID","SizeGiB","State","Attached Instance ID","Disk Used %%","Avg Volume Read Bytes","Avg Volume Write Bytes","Creation Time","Region"\n' > "$OUTPUT_FILE"
+printf '"Volume ID","SizeGiB","State","Attached Instance ID","Disk Used %%","Avg Read Bytes","Avg Write Bytes","Creation Time","Region"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -91,62 +91,49 @@ for region in "${REGIONS[@]}"; do
             ATTACHMENT=$(echo "$volume" | jq -r '.Attachments[0].InstanceId // "Not Attached"')
             CREATION_TIME=$(echo "$volume" | jq -r '.CreateTime')
 
-            # Only fetch CloudWatch metrics if volume is attached to an instance
-            if [ "$ATTACHMENT" != "Not Attached" ]; then
-                # Get Disk Used % from CloudWatch Agent (if available)
-                DISK_USED_PERCENT=$(aws cloudwatch get-metric-statistics --region "$region" \
-                    --namespace CWAgent \
-                    --metric-name disk_used_percent \
-                    --dimensions Name=InstanceId,Value="$ATTACHMENT" \
-                    --start-time "$START_TIME" \
-                    --end-time "$END_TIME" \
-                    --period "$PERIOD" \
-                    --statistics Average \
-                    --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                    --output text)
+            # Get Disk Used % from CloudWatch Agent (if available)
+            DISK_USED_PERCENT=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace CWAgent \
+                --metric-name disk_used_percent \
+                --dimensions Name=InstanceId,Value="$ATTACHMENT" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
 
-                # Get Volume Read Bytes from CloudWatch (per-volume metric)
-                DISK_READ_BYTES=$(aws cloudwatch get-metric-statistics --region "$region" \
-                    --namespace AWS/EBS \
-                    --metric-name VolumeReadBytes \
-                    --dimensions Name=VolumeId,Value="$ID" \
-                    --start-time "$START_TIME" \
-                    --end-time "$END_TIME" \
-                    --period "$PERIOD" \
-                    --statistics Average \
-                    --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                    --output text)
+            # Get Disk Read Bytes from CloudWatch
+            DISK_READ_BYTES=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace AWS/EC2 \
+                --metric-name DiskReadBytes \
+                --dimensions Name=InstanceId,Value="$ATTACHMENT" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
 
-                # Get Volume Write Bytes from CloudWatch (per-volume metric)
-                DISK_WRITE_BYTES=$(aws cloudwatch get-metric-statistics --region "$region" \
-                    --namespace AWS/EBS \
-                    --metric-name VolumeWriteBytes \
-                    --dimensions Name=VolumeId,Value="$ID" \
-                    --start-time "$START_TIME" \
-                    --end-time "$END_TIME" \
-                    --period "$PERIOD" \
-                    --statistics Average \
-                    --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                    --output text)
-            else
-                DISK_USED_PERCENT="N/A"
-                DISK_READ_BYTES="N/A"
-                DISK_WRITE_BYTES="N/A"
-            fi
+            # Get Disk Write Bytes from CloudWatch
+            DISK_WRITE_BYTES=$(aws cloudwatch get-metric-statistics --region "$region" \
+                --namespace AWS/EC2 \
+                --metric-name DiskWriteBytes \
+                --dimensions Name=InstanceId,Value="$ATTACHMENT" \
+                --start-time "$START_TIME" \
+                --end-time "$END_TIME" \
+                --period "$PERIOD" \
+                --statistics Average \
+                --query "Datapoints[0].Average" \
+                --output text)
 
             # Handle null or empty values
             DISK_USED_PERCENT=${DISK_USED_PERCENT:-"N/A"}
-            if [ "$DISK_USED_PERCENT" = "null" ] || [ "$DISK_USED_PERCENT" = "None" ]; then
+            if [ "$DISK_USED_PERCENT" = "null" ]; then
                 DISK_USED_PERCENT="N/A"
             fi
             DISK_READ_BYTES=${DISK_READ_BYTES:-"N/A"}
-            if [ "$DISK_READ_BYTES" = "null" ] || [ "$DISK_READ_BYTES" = "None" ]; then
-                DISK_READ_BYTES="N/A"
-            fi
             DISK_WRITE_BYTES=${DISK_WRITE_BYTES:-"N/A"}
-            if [ "$DISK_WRITE_BYTES" = "null" ] || [ "$DISK_WRITE_BYTES" = "None" ]; then
-                DISK_WRITE_BYTES="N/A"
-            fi
 
             printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$ID" \

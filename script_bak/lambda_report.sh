@@ -43,11 +43,10 @@ printf '"FunctionName","Runtime","Handler","CodeSize","LastModified","Region"\n'
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
     
-    # list-functions returns max 50 per call; use --no-paginate to get all
-    LAMBDA_DATA=$(aws lambda list-functions --region "$region" --output json --no-paginate)
+    LAMBDA_DATA=$(aws lambda list-functions --region "$region" --output json)
     
     if [[ "$(echo "$LAMBDA_DATA" | jq '.Functions | length')" -gt 0 ]]; then
-        echo "$LAMBDA_DATA" | jq -r --arg r "$region" '.Functions[] | [.FunctionName, (.Runtime // "N/A"), (.Handler // "N/A"), .CodeSize, .LastModified, $r] | @csv' >> "$OUTPUT_FILE"
+        echo "$LAMBDA_DATA" | jq -r --arg r "$region" '.Functions[] | [.FunctionName, .Runtime, .Handler, .CodeSize, .LastModified, $r] | @csv' >> "$OUTPUT_FILE"
     else
         log "  [Lambda] No functions found."
     fi
