@@ -269,7 +269,7 @@ if [[ "${s3:-0}" == "1" ]]; then
     TASKS+=("./script/s3_report.sh|")
 fi
 if [[ "${sp:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_sp_report.sh|$(get_report_args "./script/aws_sp_report.sh" "-r")")
+    TASKS+=("./script/aws_sp_report.sh|")
 fi
 if [[ "${ri:-0}" == "1" ]]; then
     TASKS+=("./script/aws_ri_report.sh|$(get_report_args "./script/aws_ri_report.sh" "-r")")
@@ -368,14 +368,25 @@ log_start "✨ Combining CSV reports into a single Excel file..."
 python3 ./combine_csv.py "${OUTPUT_DIR}"
 # Cek apakah eksekusi Python berhasil
 if [ $? -eq 0 ]; then
-    log_success "✅ CSV reports successfully combined into Excel: ${OUTPUT_DIR}/Combined_AWS_Reports.xlsx"
-    
-    # Copy file Excel ke root directory (lokasi zip berada)
-    cp "${OUTPUT_DIR}/Combined_AWS_Reports.xlsx" "./Combined_AWS_Reports.xlsx"
-    log_success "✅ Combined_AWS_Reports.xlsx copied to current directory."
+    # Find the actual generated Excel file (filename includes Account Name & ID)
+    EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" | head -1)
+    if [[ -z "$EXCEL_FILE" ]]; then
+        # Fallback to old naming convention
+        EXCEL_FILE="${OUTPUT_DIR}/Combined_AWS_Reports.xlsx"
+    fi
+
+    if [[ -f "$EXCEL_FILE" ]]; then
+        EXCEL_BASENAME=$(basename "$EXCEL_FILE")
+        log_success "✅ CSV reports successfully combined into Excel: ${EXCEL_FILE}"
+        
+        # Copy file Excel ke root directory
+        cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
+        log_success "✅ ${EXCEL_BASENAME} copied to current directory."
+    else
+        log_error "❌ Excel file not found after combining."
+    fi
 else
     log_error "❌ FAILED to combine CSV reports into Excel."
-    # Kita tetap melanjutkan ke zipping atau keluar, tergantung kebutuhan Anda.
 fi
 # ------------------------------
 
@@ -393,8 +404,8 @@ CURRENT_DIR=$(pwd)
 log_success "📂 Report Location (Current Directory): ${CURRENT_DIR}"
 log_success "� Zip Archive Available: ${CURRENT_DIR}/${ZIP_FILENAME}"
 
-if [ -f "./Combined_AWS_Reports.xlsx" ]; then
-    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/Combined_AWS_Reports.xlsx"
+if [[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]]; then
+    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${EXCEL_BASENAME}"
 else
-    log_success "�📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
+    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
 fi
