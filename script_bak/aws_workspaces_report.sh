@@ -58,15 +58,15 @@ for region in "${REGIONS[@]}"; do
             STATUS=$(echo "$workspace" | jq -r '.State // "N/A"')
 
             # Get the last active time using a separate API call
-            LAST_ACTIVE_RAW=$(aws workspaces describe-workspaces-connection-status \
+            LAST_ACTIVE_UNIX=$(aws workspaces describe-workspaces-connection-status \
                 --region "$region" \
                 --workspace-ids "$WORKSPACE_ID" \
                 --query 'WorkspacesConnectionStatus[0].LastKnownUserConnectionTimestamp' \
                 --output text)
 
-            # The API returns an ISO 8601 timestamp string (not Unix timestamp)
-            if [ -n "$LAST_ACTIVE_RAW" ] && [ "$LAST_ACTIVE_RAW" != "None" ] && [ "$LAST_ACTIVE_RAW" != "null" ]; then
-                LAST_ACTIVE_TIME=$(date -d "$LAST_ACTIVE_RAW" -u +"%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || echo "$LAST_ACTIVE_RAW")
+            # Convert Unix timestamp to a human-readable date, handling empty values
+            if [ -n "$LAST_ACTIVE_UNIX" ] && [ "$LAST_ACTIVE_UNIX" != "None" ]; then
+                LAST_ACTIVE_TIME=$(date -d @"$LAST_ACTIVE_UNIX" -u +"%Y-%m-%d %H:%M:%S UTC")
             else
                 LAST_ACTIVE_TIME="N/A"
             fi

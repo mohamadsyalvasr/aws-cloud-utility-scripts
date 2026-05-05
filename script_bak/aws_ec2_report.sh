@@ -1,19 +1,14 @@
 #!/bin/bash
-# aws_inventory.sh
-# Script to combine EC2 and RDS reports into a single CSV file with specifications and average utilization
-# based on a specified time period and regions.
+# aws_ec2_report.sh
+# Gathers a detailed report on EC2 instances, including specifications and average utilization metrics.
 
-# Exit immediately if a command fails
 set -euo pipefail
 
 log() {
     echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
 
-########################################
-# CONFIGURATION AND ARGUMENTS
-########################################
-# Default values
+# --- Configuration and Arguments ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 SUM_ALL_EBS=false
 # TS=$(date +"%Y%m%d-%H%M%S")
@@ -21,7 +16,7 @@ YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
 OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
-FILENAME="${OUTPUT_DIR}/aws_inventory.csv"
+FILENAME="${OUTPUT_DIR}/aws_ec2_report.csv"
 START_DATE=""
 END_DATE=""
 PERIOD=2592000 # Default to ~30 days in seconds
@@ -38,7 +33,7 @@ Options:
   -s               Enables the summation of all attached EBS volumes.
                    Default: Only calculates the root disk size.
   -f <filename>    Name of the output CSV file.
-                   Default: aws_inventory_<timestamp>.csv
+                   Default: aws_ec2_report_<timestamp>.csv
   -h               Show this help message.
 EOF
     exit 1
@@ -71,7 +66,6 @@ while getopts "b:e:r:sf:h" opt; do
 done
 shift $((OPTIND-1))
 
-# Check for required arguments
 if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
     log "❌ Arguments -b and -e are required."
     usage
@@ -80,14 +74,7 @@ fi
 START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
 END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
 
-
-########################################
-# UTIL & PRECHECK
-########################################
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
-
+# --- Dependency Check ---
 check_dependencies() {
     log "🔎 Checking dependencies (aws cli, jq)..."
     if ! command -v aws >/dev/null 2>&1; then
@@ -101,14 +88,12 @@ check_dependencies() {
     log "✅ Dependencies met."
 }
 
-########################################
-# MAIN SCRIPT
-########################################
+# --- Main Script ---
 check_dependencies
-
 log "✍️ Preparing output file: $FILENAME"
-# Adjusted CSV Header
-printf '"Name","Instance ID","Instance state","Type","Engine (RDS)","Instance type","Elastic IP","Launch time","vCPUs","Memory (GiB)","Disk (GiB)","Average CPU %%","Average Memory %%","Region"\n' > "$FILENAME"
+
+# Create CSV header
+printf '"Name","Instance ID","Instance state","Type","Instance type","Elastic IP","Launch time","vCPUs","Memory (GiB)","Disk (GiB)","Average CPU %%","Average Memory %%","Region"\n' > "$FILENAME"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
@@ -118,11 +103,13 @@ for region in "${REGIONS[@]}"; do
     EC2_DATA=$(aws ec2 describe-instances --region "$region" --query 'Reservations[].Instances[]' --output json)
 
     if [[ "$(echo "$EC2_DATA" | jq 'length')" -gt 0 ]]; then
+        # Get all unique instance types first, then fetch specs in one go to reduce API calls.
         mapfile -t INSTANCE_TYPES < <(echo "$EC2_DATA" | jq -r '.[].InstanceType' | sort -u)
         declare -A INSTANCE_SPECS
         if [[ ${#INSTANCE_TYPES[@]} -gt 0 ]]; then
             log "  [EC2] Caching specs for ${#INSTANCE_TYPES[@]} instance types..."
             TYPE_SPECS=$(aws ec2 describe-instance-types --region "$region" --instance-types "${INSTANCE_TYPES[@]}" --query 'InstanceTypes[].{Type:InstanceType, Vcpu:VCpuInfo.DefaultVCpus, Mem:MemoryInfo.SizeInMiB}' --output json)
+            
             while IFS= read -r spec; do
                 type=$(echo "$spec" | jq -r '.Type')
                 vcpu=$(echo "$spec" | jq -r '.Vcpu')
@@ -139,9 +126,11 @@ for region in "${REGIONS[@]}"; do
             TYPE=$(echo "$instance" | jq -r '.InstanceType')
             LAUNCH_TIME=$(echo "$instance" | jq -r '.LaunchTime')
             NAME=$(echo "$instance" | jq -r '([.Tags[]? | select(.Key=="Name").Value] | .[0]) // "N/A"')
+            
             SPECS=${INSTANCE_SPECS[$TYPE]:="N/A,N/A"}
             VCPU=$(echo "$SPECS" | cut -d',' -f1)
             MEM_GIB=$(echo "$SPECS" | cut -d',' -f2)
+            
             DISK_GIB=0
             if [[ "$SUM_ALL_EBS" == "true" ]]; then
                 mapfile -t VOL_IDS < <(echo "$instance" | jq -r '.BlockDeviceMappings[].Ebs.VolumeId')
@@ -159,7 +148,6 @@ for region in "${REGIONS[@]}"; do
             fi
             DISK_GIB=${DISK_GIB:-0}
 
-            # Get Average CPU % from CloudWatch
             CPU_UTIL=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/EC2 \
                 --metric-name CPUUtilization \
@@ -171,7 +159,6 @@ for region in "${REGIONS[@]}"; do
                 --query "Datapoints[0].Average" \
                 --output text)
 
-            # Check if memory metrics exist
             AVG_MEMORY_PERCENT=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace CWAgent \
                 --metric-name mem_used_percent \
@@ -183,23 +170,20 @@ for region in "${REGIONS[@]}"; do
                 --query "Datapoints[0].Average" \
                 --output text)
             
-            # Fix: Add check for "null" string
             if [ -z "$AVG_MEMORY_PERCENT" ] || [ "$AVG_MEMORY_PERCENT" = "null" ]; then
                 AVG_MEMORY_PERCENT="N/A"
             fi
             
-            # Get Elastic IP (if any)
             ELASTIC_IP=$(echo "$instance" | jq -r '.PublicIpAddress')
             if [ "$ELASTIC_IP" = "null" ]; then
                 ELASTIC_IP="N/A"
             fi
 
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
                 "$NAME" \
                 "$ID" \
                 "$STATE" \
                 "EC2" \
-                "N/A" \
                 "$TYPE" \
                 "$ELASTIC_IP" \
                 "$LAUNCH_TIME" \
@@ -212,93 +196,6 @@ for region in "${REGIONS[@]}"; do
         done < <(echo "$EC2_DATA" | jq -c '.[]')
     else
         log "  [EC2] No instances found."
-    fi
-
-    # --- PROCESS RDS ---
-    log "  [RDS] Fetching DB instance data..."
-    RDS_DATA=$(aws rds describe-db-instances --region "$region" --query 'DBInstances[]' --output json)
-
-    if [[ "$(echo "$RDS_DATA" | jq 'length')" -gt 0 ]]; then
-        declare -A RDS_SPECS_CACHE
-        mapfile -t UNIQUE_ENGINES < <(echo "$RDS_DATA" | jq -r '.[].Engine' | sort -u)
-        
-        log "  [RDS] Caching specs for engines: ${UNIQUE_ENGINES[*]}..."
-        for engine in "${UNIQUE_ENGINES[@]}"; do
-            CLASS_SPECS=$(aws rds describe-orderable-db-instance-options --region "$region" --engine "$engine" --query 'OrderableDBInstanceOptions[].{Class:DBInstanceClass, Vcpu:Vcpu, Mem:Memory}' --output json 2>/dev/null || echo "[]")
-            while IFS= read -r spec; do
-                class=$(echo "$spec" | jq -r '.Class')
-                vcpu=$(echo "$spec" | jq -r '.Vcpu')
-                mem_gib=$(echo "$spec" | jq -r '.Mem')
-
-                if [[ "$class" == "null" ]]; then continue; fi
-                if [[ "$vcpu" == "null" ]]; then vcpu="N/A"; fi
-                if [[ "$mem_gib" == "null" ]]; then mem_gib="N/A"; fi
-
-                CACHE_KEY="$class,$engine"
-                RDS_SPECS_CACHE["$CACHE_KEY"]="$vcpu,$mem_gib"
-            done < <(echo "$CLASS_SPECS" | jq -c '.[]')
-        done
-
-        log "  [RDS] Processing and writing to CSV..."
-        while IFS= read -r db_instance; do
-            ID=$(echo "$db_instance" | jq -r '.DBInstanceIdentifier')
-            STATE=$(echo "$db_instance" | jq -r '.DBInstanceStatus')
-            CLASS=$(echo "$db_instance" | jq -r '.DBInstanceClass')
-            ENGINE=$(echo "$db_instance" | jq -r '.Engine')
-            CREATE_TIME=$(echo "$db_instance" | jq -r '.InstanceCreateTime')
-            DISK_GIB=$(echo "$db_instance" | jq -r '.AllocatedStorage')
-            DB_ARN=$(echo "$db_instance" | jq -r '.DBInstanceArn')
-            
-            NAME=$(aws rds list-tags-for-resource --resource-name "$DB_ARN" --region "$region" --query 'TagList[?Key==`Name`].Value' --output text | tr -d '\n' || echo "N/A")
-            NAME=${NAME:-"N/A"}
-
-            CACHE_KEY_TO_FIND="$CLASS,$ENGINE"
-            SPECS=${RDS_SPECS_CACHE[$CACHE_KEY_TO_FIND]:="N/A,N/A"}
-            VCPU=$(echo "$SPECS" | cut -d',' -f1)
-            MEM_GIB=$(echo "$SPECS" | cut -d',' -f2)
-
-            CPU_UTIL=$(aws cloudwatch get-metric-statistics --region "$region" \
-                --namespace AWS/RDS \
-                --metric-name CPUUtilization \
-                --dimensions Name=DBInstanceIdentifier,Value="$ID" \
-                --start-time "$START_TIME" \
-                --end-time "$END_TIME" \
-                --period "$PERIOD" \
-                --statistics Average \
-                --query "Datapoints[0].Average" \
-                --output text)
-
-            FREE_MEM=$(aws cloudwatch get-metric-statistics --region "$region" \
-                --namespace AWS/RDS \
-                --metric-name FreeableMemory \
-                --dimensions Name=DBInstanceIdentifier,Value="$ID" \
-                --start-time "$START_TIME" \
-                --end-time "$END_TIME" \
-                --period "$PERIOD" \
-                --statistics Average \
-                --query "Datapoints[0].Average" \
-                --output text)
-            
-            AVG_MEMORY_PERCENT=$(echo "scale=2; (1 - (${FREE_MEM:-0} / ${TOTAL_MEMORY_BYTES:-1})) * 100" | bc)
-            
-            printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-                "$NAME" \
-                "$ID" \
-                "$STATE" \
-                "RDS" \
-                "$ENGINE" \
-                "$CLASS" \
-                "N/A" \
-                "$CREATE_TIME" \
-                "$VCPU" \
-                "$MEM_GIB" \
-                "$DISK_GIB" \
-                "${CPU_UTIL:-N/A}" \
-                "${AVG_MEMORY_PERCENT:-N/A}" \
-                "$region" >> "$FILENAME"
-        done < <(echo "$RDS_DATA" | jq -c '.[]')
-    else
-        log "  [RDS] No DB instances found."
     fi
 
     log "Region \033[1;33m$region\033[0m Complete."

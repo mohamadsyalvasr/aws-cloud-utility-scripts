@@ -116,24 +116,24 @@ for region in "${REGIONS[@]}"; do
             ALLOWED_REQUESTS=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/WAFV2 \
                 --metric-name AllowedRequests \
-                --dimensions Name=WebACL,Value="$NAME" Name=Rule,Value="All" Name=Region,Value="$region" \
+                --dimensions Name=WebACL,Value="$NAME" Name=Rule,Value="All" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Sum \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Sum" \
+                --query "Datapoints[0].Sum" \
                 --output text || echo "0") # Default to 0 if no data
 
             # Fetch blocked requests from CloudWatch
             BLOCKED_REQUESTS=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/WAFV2 \
                 --metric-name BlockedRequests \
-                --dimensions Name=WebACL,Value="$NAME" Name=Rule,Value="All" Name=Region,Value="$region" \
+                --dimensions Name=WebACL,Value="$NAME" Name=Rule,Value="All" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Sum \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Sum" \
+                --query "Datapoints[0].Sum" \
                 --output text || echo "0") # Default to 0 if no data
 
             printf '"%s","%s","%s","%s","%s","%s"\n' \
