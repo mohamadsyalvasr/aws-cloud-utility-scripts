@@ -321,3 +321,5 @@ This makes it easy to identify which account the report belongs to when managing
 - **Global Services**: IAM, CloudFront, Billing, Savings Plans, and Route 53 are global APIs — they don't loop through regions.
 - **Rate Limiting**: For accounts with many resources, consider keeping `max_parallel=2` to avoid AWS API throttling.
 - **Excel Styling**: Conditional formatting rules are defined in `excel_styles.py`. EC2 instances not in "running" state are highlighted with background color `#DEBABA`.
+
+Copyright 2026
