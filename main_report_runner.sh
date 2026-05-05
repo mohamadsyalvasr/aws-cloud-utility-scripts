@@ -1,181 +1,79 @@
 #!/bin/bash
 # main_report_runner.sh
-# Main script to run all AWS reporting scripts based on a configuration file.
+# Main orchestrator script for AWS report generation.
+# Reads config.ini, runs enabled reports, combines to Excel, and zips output.
 
 set -euo pipefail
 
-# --- Logging Functions with Status Symbols ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# --- Load Modules ---
+source ./lib/logger.sh
+source ./lib/task_runner.sh
+source ./lib/report_registry.sh
 
-log_start() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
-
-log_success() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] ✅ $*"
-}
-
-log_error() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] ❌ $*"
-}
-
-# --- Main Script ---
+# --- Start ---
 log_start "🚀 Starting combined AWS report generation..."
 
-# Set execute permissions for the dependency script
-log_start "🔧 Setting execute permissions for dependency script..."
+# --- Install Dependencies ---
+log_start "🔧 Installing dependencies..."
 chmod +x ./dependencies.sh
-log_success "Permissions set."
-
-# Run the dependency installation script
 ./dependencies.sh
 
-log_start "🔧 Setting execute permissions for all report scripts..."
-chmod +x ./script/aws_ec2_report.sh
-chmod +x ./script/aws_rds_report.sh
-chmod +x ./script/aws_ri_report.sh
-chmod +x ./script/aws_sp_report.sh
-chmod +x ./script/ebs_report.sh
-chmod +x ./script/ebs_utilization_report.sh
-chmod +x ./script/ecr_report.sh
-chmod +x ./script/aws_billing_report.sh
-chmod +x ./script/s3_report.sh
-chmod +x ./script/elasticache_report.sh
-chmod +x ./script/eks_report.sh
-chmod +x ./script/elb_report.sh
-chmod +x ./script/efs_report.sh
-chmod +x ./script/vpc_report.sh
-chmod +x ./script/waf_report.sh
-chmod +x ./script/aws_workspaces_report.sh
-chmod +x ./script/aws_workspaces_report.sh
-chmod +x ./script/iam_report.sh
-chmod +x ./script/kms_report.sh
-chmod +x ./script/lambda_report.sh
-chmod +x ./script/cloudfront_report.sh
-chmod +x ./script/dynamodb_report.sh
-chmod +x ./script/asg_report.sh
-chmod +x ./script/ecs_report.sh
-chmod +x ./script/vpn_report.sh
-chmod +x ./combine_csv.py
-log_success "✅ Permissions set."
+# --- Set Permissions & Validate ---
+log_start "🔧 Setting execute permissions..."
+set_script_permissions
+log_success "Permissions set."
 
-# Check if the required scripts and config file exist
-REQUIRED_SCRIPTS=(
-    "./script/aws_ec2_report.sh"
-    "./script/aws_rds_report.sh"
-    "./script/ebs_report.sh"
-    "./script/ebs_utilization_report.sh"
-    "./script/ecr_report.sh"
-    "./script/aws_billing_report.sh"
-    "./script/s3_report.sh"
-    "./script/elasticache_report.sh"
-    "./script/eks_report.sh"
-    "./script/elb_report.sh"
-    "./script/efs_report.sh"
-    "./script/vpc_report.sh"
-    "./script/waf_report.sh"
-    "./script/aws_sp_report.sh"
-    "./script/aws_ri_report.sh"
-    "./script/aws_workspaces_report.sh"
-    "./script/aws_ri_report.sh"
-    "./script/aws_workspaces_report.sh"
-    "./script/iam_report.sh"
-    "./script/kms_report.sh"
-    "./script/lambda_report.sh"
-    "./script/cloudfront_report.sh"
-    "./script/dynamodb_report.sh"
-    "./script/asg_report.sh"
-    "./script/ecs_report.sh"
-    "./script/vpn_report.sh"
-)
-
-for script_path in "${REQUIRED_SCRIPTS[@]}"; do
-    if [[ ! -f "$script_path" ]]; then
-        log_error "Error: Required script not found: $script_path"
-        log_error "Please ensure all scripts are in the correct directory."
-        exit 1
-    fi
-done
+validate_scripts
 
 if [[ ! -f "./config.ini" ]]; then
-    log_error "Error: Configuration file config.ini not found. Please create it."
+    log_error "Configuration file config.ini not found."
     exit 1
 fi
 
-# --- IMPORTANT: Interactive Check and Deletion of Previous Output Folder ---
-OUTPUT_ROOT="export"
-
-# 1. Define the output current date variables
+# --- Output Directory Setup ---
 YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
-
-TODAY_DIR="aws-cloud-report-${YEAR}-${MONTH}-${DAY}"
-# 2. Define and EXPORT OUTPUT_DIR to ensure child scripts (in ./script/) can save their files here.
-export OUTPUT_DIR="${OUTPUT_ROOT}/${TODAY_DIR}"
+export OUTPUT_DIR="export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}"
 
 if [[ -d "$OUTPUT_DIR" ]]; then
     log_start "🚨 Previous output folder detected: $OUTPUT_DIR"
-    
-    # Prompt the user for input. The -r option ensures raw input, -p displays the prompt.
     read -r -p "Do you want to DELETE the previous output folder? (y/N): " response
-    
-    # Check if the response is 'y' or 'Y'
     if [[ "$response" =~ ^([yY])$ ]]; then
-        log_start "🗑️ Deleting previous output folder..."
         rm -rf "$OUTPUT_DIR"
-        log_success "✅ Previous output folder successfully deleted."
+        log_success "Previous output folder deleted."
     else
-        log_start "⚠️ Previous output folder NOT deleted. Reports might function unexpectedly if files exist."
+        log_start "⚠️ Previous output folder NOT deleted."
     fi
 fi
 
-# Initialize Result Tracking (using temp files for background job compatibility)
+# --- Result Tracking ---
 RESULT_DIR=$(mktemp -d)
-# Ensure cleanup on exit
 trap 'rm -rf "$RESULT_DIR"' EXIT
+export RESULT_DIR
 
-# Function to record result
-record_result() {
-    local task_name="$1"
-    local status="$2"
-    echo "$status" > "${RESULT_DIR}/${task_name// /_}.status"
-}
-
-log_start "📁 Creating clean output directory: ${OUTPUT_DIR}/"
+log_start "📁 Creating output directory: ${OUTPUT_DIR}/"
 mkdir -p "${OUTPUT_DIR}"
+log_success "Output directory created: ${OUTPUT_DIR}"
 
-# Check if the directory was successfully created
-if [ $? -eq 0 ]; then
-    log_success "✅ Output directory created: ${OUTPUT_DIR}"
-else
-    log_error "❌ FAILED to create output directory: ${OUTPUT_DIR}"
-    exit 1
-fi
-
-# Read configuration from the INI file
-# Filter: skip comment lines (starting with ;) and empty lines, then parse key=value pairs
+# --- Read Configuration ---
 source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/ *= */=/g')
 
-# Use default values for parallel settings if missing
 PARALLEL_ENABLED="${parallel:-0}"
 MAX_PARALLEL="${max_parallel:-3}"
 
-# Process flags from CLI arguments without requiring a hyphen
+# --- Parse CLI Arguments ---
 PASS_THROUGH_ARGS=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
-        -b|--begin) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export START_DATE="$1" ;;
-        -e|--end) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export END_DATE="$1" ;;
+        -b|--begin)   PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export START_DATE="$1" ;;
+        -e|--end)     PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export END_DATE="$1" ;;
         -s|--sum-ebs) PASS_THROUGH_ARGS+=("$1") ;;
         -f|--filename) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
         -h|--help)
-            log_start "Usage: $0 <other_args>"
-            log_start "  <other_args>: Arguments for the individual scripts (-r, -b, -e, -f, -s)."
-            log_start "  To select which reports to run, edit the config.ini file."
+            echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-s] [-f filename]"
+            echo "  Edit config.ini to select which reports to run."
             exit 0
             ;;
         *) PASS_THROUGH_ARGS+=("$1") ;;
@@ -183,274 +81,41 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# General function to execute a report (called by run_report_with_args or directly)
-execute_task() {
-    local script_path="$1"
-    local run_args=("${@:2}")
-    local task_name=$(basename "$script_path")
+# --- Build & Run Tasks ---
+build_task_list
+run_tasks "$PARALLEL_ENABLED" "$MAX_PARALLEL"
 
-    log_start "🚀 Running ${task_name}..."
-    
-    # Run the script and capture exit code
-    # Using 'set +e' temporarily to prevent script exit on report failure
-    set +e
-    if [[ ${#run_args[@]} -gt 0 ]]; then
-        "${script_path}" "${run_args[@]}"
-    else
-        "${script_path}"
-    fi
-    local exit_code=$?
-    set -e
+# --- Summary ---
+print_summary
 
-    if [[ $exit_code -eq 0 ]]; then
-        log_success "✅ ${task_name} finished successfully."
-        record_result "$task_name" "SUCCESS"
-    else
-        log_error "❌ ${task_name} failed with exit code ${exit_code}."
-        record_result "$task_name" "FAILED"
-    fi
-    return $exit_code
-}
-
-# Wrapper for run_report_with_args to collect arguments
-get_report_args() {
-    local script_path="$1"
-    shift
-    local needed_args="$*"
-    local run_args=()
-
-    for arg in $needed_args; do
-        for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
-            if [[ "${PASS_THROUGH_ARGS[$i]}" == "$arg" ]]; then
-                run_args+=("${PASS_THROUGH_ARGS[$i]}")
-                if [[ "$arg" != "-s" ]]; then
-                    run_args+=("${PASS_THROUGH_ARGS[$i+1]}")
-                fi
-            fi
-        done
-    done
-    echo "${run_args[@]}"
-}
-
-# 1. Collect all reports to be executed
-TASKS=()
-
-if [[ "${billing:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_billing_report.sh|$(get_report_args "./script/aws_billing_report.sh" "-b -e")")
-fi
-if [[ "${ebs_detailed:-0}" == "1" ]]; then
-    TASKS+=("./script/ebs_report.sh|$(get_report_args "./script/ebs_report.sh" "-r")")
-fi
-if [[ "${ebs_utilization:-0}" == "1" ]]; then
-    TASKS+=("./script/ebs_utilization_report.sh|$(get_report_args "./script/ebs_utilization_report.sh" "-r -b -e")")
-fi
-if [[ "${ec2:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_ec2_report.sh|$(get_report_args "./script/aws_ec2_report.sh" "-r -b -e -s")")
-fi
-if [[ "${ecr:-0}" == "1" ]]; then
-    TASKS+=("./script/ecr_report.sh|$(get_report_args "./script/ecr_report.sh" "-r")")
-fi
-if [[ "${efs:-0}" == "1" ]]; then
-    TASKS+=("./script/efs_report.sh|$(get_report_args "./script/efs_report.sh" "-r")")
-fi
-if [[ "${eks:-0}" == "1" ]]; then
-    TASKS+=("./script/eks_report.sh|$(get_report_args "./script/eks_report.sh" "-r")")
-fi
-if [[ "${elb:-0}" == "1" ]]; then
-    TASKS+=("./script/elb_report.sh|$(get_report_args "./script/elb_report.sh" "-r")")
-fi
-if [[ "${elasticache:-0}" == "1" ]]; then
-    TASKS+=("./script/elasticache_report.sh|$(get_report_args "./script/elasticache_report.sh" "-r")")
-fi
-if [[ "${rds:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_rds_report.sh|$(get_report_args "./script/aws_rds_report.sh" "-r -b -e")")
-fi
-if [[ "${s3:-0}" == "1" ]]; then
-    TASKS+=("./script/s3_report.sh|")
-fi
-if [[ "${sp:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_sp_report.sh|")
-fi
-if [[ "${ri:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_ri_report.sh|$(get_report_args "./script/aws_ri_report.sh" "-r")")
-fi
-if [[ "${vpc:-0}" == "1" ]]; then
-    TASKS+=("./script/vpc_report.sh|$(get_report_args "./script/vpc_report.sh" "-r")")
-fi
-if [[ "${waf:-0}" == "1" ]]; then
-    TASKS+=("./script/waf_report.sh|$(get_report_args "./script/waf_report.sh" "-r -b -e")")
-fi
-if [[ "${workspaces:-0}" == "1" ]]; then
-    TASKS+=("./script/aws_workspaces_report.sh|$(get_report_args "./script/aws_workspaces_report.sh" "-r")")
-fi
-if [[ "${iam:-0}" == "1" ]]; then
-    TASKS+=("./script/iam_report.sh|")
-fi
-if [[ "${kms:-0}" == "1" ]]; then
-    TASKS+=("./script/kms_report.sh|$(get_report_args "./script/kms_report.sh" "-r")")
-fi
-if [[ "${lambda:-0}" == "1" ]]; then
-    TASKS+=("./script/lambda_report.sh|$(get_report_args "./script/lambda_report.sh" "-r")")
-fi
-if [[ "${cloudfront:-0}" == "1" ]]; then
-    TASKS+=("./script/cloudfront_report.sh|")
-fi
-if [[ "${dynamodb:-0}" == "1" ]]; then
-    TASKS+=("./script/dynamodb_report.sh|$(get_report_args "./script/dynamodb_report.sh" "-r")")
-fi
-if [[ "${asg:-0}" == "1" ]]; then
-    TASKS+=("./script/asg_report.sh|$(get_report_args "./script/asg_report.sh" "-r")")
-fi
-if [[ "${ecs:-0}" == "1" ]]; then
-    TASKS+=("./script/ecs_report.sh|$(get_report_args "./script/ecs_report.sh" "-r")")
-fi
-if [[ "${vpn:-0}" == "1" ]]; then
-    TASKS+=("./script/vpn_report.sh|$(get_report_args "./script/vpn_report.sh" "-r")")
-fi
-
-# 2. Run Collected Tasks
-if [[ "$PARALLEL_ENABLED" == "1" ]]; then
-    log_start "⏳ Running reports in PARALLEL mode (Max: ${MAX_PARALLEL})..."
-    PIDS=()
-    TASK_NAMES=()
-    
-    for task_info in "${TASKS[@]}"; do
-        IFS='|' read -r script_path args <<< "$task_info"
-        
-        # Manage parallel limit - wait for a slot to open
-        while [[ ${#PIDS[@]} -ge $MAX_PARALLEL ]]; do
-            # Wait for any one job to finish
-            NEW_PIDS=()
-            for pid in "${PIDS[@]}"; do
-                if kill -0 "$pid" 2>/dev/null; then
-                    NEW_PIDS+=("$pid")
-                fi
-            done
-            PIDS=("${NEW_PIDS[@]}")
-            if [[ ${#PIDS[@]} -ge $MAX_PARALLEL ]]; then
-                sleep 1
-            fi
-        done
-        
-        # Run task in background, redirect output to log file
-        task_name=$(basename "$script_path")
-        log_start "  ↳ Starting ${task_name} (background)..."
-        execute_task "$script_path" $args > "${RESULT_DIR}/${task_name}.log" 2>&1 &
-        PIDS+=($!)
-        TASK_NAMES+=("$task_name")
-    done
-    
-    # Wait for ALL remaining background jobs to finish
-    log_start "⏳ Waiting for all parallel tasks to complete..."
-    for pid in "${PIDS[@]}"; do
-        wait "$pid" 2>/dev/null || true
-    done
-    
-    # Print collected logs
-    log_start "📋 Task output summary:"
-    for task_name in "${TASK_NAMES[@]}"; do
-        if [[ -f "${RESULT_DIR}/${task_name}.log" ]]; then
-            cat "${RESULT_DIR}/${task_name}.log" >&2
-        fi
-    done
-else
-    log_start "⏳ Running reports in SEQUENTIAL mode..."
-    for task_info in "${TASKS[@]}"; do
-        IFS='|' read -r script_path args <<< "$task_info"
-        execute_task "$script_path" $args
-    done
-fi
-
-log_success "All report tasks completed."
-
-# --- GENERATE SUMMARY ---
-echo "--------------------------------------------------"
-echo "             AWS REPORTS SUMMARY                  "
-echo "--------------------------------------------------"
-TOTAL_TASKS="${#TASKS[@]}"
-
-# Count results safely using simple file counting
-SUCCESS_COUNT=0
-FAILED_COUNT=0
-shopt -s nullglob
-for f in "${RESULT_DIR}"/*.status; do
-    content=$(cat "$f")
-    if [[ "$content" == "SUCCESS" ]]; then
-        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-    elif [[ "$content" == "FAILED" ]]; then
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-    fi
-done
-shopt -u nullglob
-
-echo "Total Reports Attempted: $TOTAL_TASKS"
-echo "Successful: $SUCCESS_COUNT"
-echo "Failed:     $FAILED_COUNT"
-
-if [[ $FAILED_COUNT -gt 0 ]]; then
-    echo ""
-    echo "Failed Reports List:"
-    shopt -s nullglob
-    for f in "${RESULT_DIR}"/*.status; do
-        if [[ "$(cat "$f")" == "FAILED" ]]; then
-            task_file=$(basename "$f" .status)
-            echo " - ${task_file//_/ }"
-        fi
-    done
-    shopt -u nullglob
-fi
-echo "--------------------------------------------------"
-
-# If no reports were even attempted
-if [[ $TOTAL_TASKS -eq 0 ]]; then
-    log_error "No reports were selected in config.ini."
-fi
-# log_success "Your reports are now available in the current directory." # Baris ini dihapus atau diubah karena Excel belum dibuat
-
-# --- GABUNGKAN CSV KE EXCEL ---
+# --- Combine CSV to Excel ---
 log_start "✨ Combining CSV reports into a single Excel file..."
-# Panggil skrip Python dengan direktori output sebagai argumen
-python3 ./combine_csv.py "${OUTPUT_DIR}"
-# Cek apakah eksekusi Python berhasil
-if [ $? -eq 0 ]; then
-    # Find the actual generated Excel file (filename includes Account Name & ID)
-    EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" | head -1)
-    if [[ -z "$EXCEL_FILE" ]]; then
-        # Fallback to old naming convention
-        EXCEL_FILE="${OUTPUT_DIR}/Combined_AWS_Reports.xlsx"
-    fi
-
-    if [[ -f "$EXCEL_FILE" ]]; then
+if python3 ./combine_csv.py "${OUTPUT_DIR}"; then
+    EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
+    if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
         EXCEL_BASENAME=$(basename "$EXCEL_FILE")
-        log_success "✅ CSV reports successfully combined into Excel: ${EXCEL_FILE}"
-        
-        # Copy file Excel ke root directory
+        log_success "CSV reports combined into Excel: ${EXCEL_FILE}"
         cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
-        log_success "✅ ${EXCEL_BASENAME} copied to current directory."
+        log_success "${EXCEL_BASENAME} copied to current directory."
     else
-        log_error "❌ Excel file not found after combining."
+        log_error "Excel file not found after combining."
     fi
 else
-    log_error "❌ FAILED to combine CSV reports into Excel."
+    log_error "FAILED to combine CSV reports into Excel."
 fi
-# ------------------------------
 
-# --- ZIP the output folder ---
+# --- Zip Output ---
 log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
-
-# The 'zip' command is executed here
 zip -r "${ZIP_FILENAME}" "${OUTPUT_DIR}"
+log_success "All reports zipped to: ${ZIP_FILENAME}"
 
-log_success "✅ All reports have been zipped to: ${ZIP_FILENAME}"
-
-# --- Added: Display final location and copy/paste path ---
+# --- Final Info ---
 CURRENT_DIR=$(pwd)
-log_success "📂 Report Location (Current Directory): ${CURRENT_DIR}"
-log_success "� Zip Archive Available: ${CURRENT_DIR}/${ZIP_FILENAME}"
-
+log_success "📂 Report Location: ${CURRENT_DIR}"
+log_success "📦 Zip Archive: ${CURRENT_DIR}/${ZIP_FILENAME}"
 if [[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]]; then
-    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${EXCEL_BASENAME}"
+    log_success "📋 Download Path: ${CURRENT_DIR}/${EXCEL_BASENAME}"
 else
-    log_success "📋 Copy/Paste Path for Download: ${CURRENT_DIR}/${ZIP_FILENAME}"
+    log_success "📋 Download Path: ${CURRENT_DIR}/${ZIP_FILENAME}"
 fi

@@ -16,6 +16,7 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | `aws_sp_report.sh` | AWS Savings Plans | Reports on Savings Plans (type, commitment, payment option). Global API. |
 | `aws_workspaces_report.sh` | Amazon WorkSpaces | Reports on WorkSpaces (compute, volumes, running mode, last active time). |
 | `cloudfront_report.sh` | Amazon CloudFront (CDN) | Reports on CloudFront Distributions. Global API. |
+| `data_transfer_report.sh` | AWS Data Transfer | Cost breakdown from Cost Explorer + Network In/Out per EC2 instance (GB). |
 | `dynamodb_report.sh` | Amazon DynamoDB (NoSQL Database) | Reports on DynamoDB tables (status, item count, size). |
 | `ebs_report.sh` | Amazon EBS (Elastic Block Store) | Detailed inventory of EBS volumes (type, size, IOPS, throughput, state). |
 | `ebs_utilization_report.sh` | Amazon EBS (Elastic Block Store) | EBS volumes with utilization metrics (read/write bytes, disk used %). |
@@ -49,6 +50,7 @@ Example `config.ini`:
 ;   asg           = Auto Scaling Group (EC2 Auto Scaling)
 ;   billing       = AWS Billing & Cost Management (Cost Explorer)
 ;   cloudfront    = Amazon CloudFront (Content Delivery Network / CDN)
+;   data_transfer = AWS Data Transfer (Network Transfer Cost & Usage per Instance)
 ;   dynamodb      = Amazon DynamoDB (NoSQL Database)
 ;   ebs_detailed  = Amazon EBS - Elastic Block Store (Block Storage Volumes)
 ;   ebs_utilization = Amazon EBS - Elastic Block Store (Utilization Metrics)
@@ -75,6 +77,7 @@ Example `config.ini`:
 asg=1
 billing=0
 cloudfront=1
+data_transfer=1
 dynamodb=1
 ebs_detailed=1
 ebs_utilization=0
@@ -199,6 +202,7 @@ This makes it easy to identify which account the report belongs to when managing
 │   ├── aws_sp_report.sh
 │   ├── aws_workspaces_report.sh
 │   ├── cloudfront_report.sh
+│   ├── data_transfer_report.sh
 │   ├── dynamodb_report.sh
 │   ├── ebs_report.sh
 │   ├── ebs_utilization_report.sh
