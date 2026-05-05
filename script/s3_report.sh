@@ -102,9 +102,13 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
         --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
         --output text)
 
-    # Handle null or empty values
-    TOTAL_SIZE_BYTES=${TOTAL_SIZE_BYTES:-0}
-    OBJECT_COUNT=${OBJECT_COUNT:-0}
+    # Handle null, empty, or "None" values from CloudWatch
+    if [[ -z "$TOTAL_SIZE_BYTES" || "$TOTAL_SIZE_BYTES" == "None" || "$TOTAL_SIZE_BYTES" == "null" ]]; then
+        TOTAL_SIZE_BYTES=0
+    fi
+    if [[ -z "$OBJECT_COUNT" || "$OBJECT_COUNT" == "None" || "$OBJECT_COUNT" == "null" ]]; then
+        OBJECT_COUNT=0
+    fi
     
     # Convert bytes to GB
     TOTAL_SIZE_GB=$(echo "scale=2; ${TOTAL_SIZE_BYTES} / 1073741824" | bc)
