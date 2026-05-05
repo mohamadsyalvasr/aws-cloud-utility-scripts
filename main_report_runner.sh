@@ -88,6 +88,25 @@ run_tasks "$PARALLEL_ENABLED" "$MAX_PARALLEL"
 # --- Summary ---
 print_summary
 
+# --- Remove empty CSV files (header-only, no data) ---
+log_start "🧹 Removing empty CSV files (header-only)..."
+REMOVED_COUNT=0
+shopt -s nullglob
+for csv_file in "${OUTPUT_DIR}"/*.csv; do
+    # Count lines: if only 1 line (header) or 0 lines, remove
+    line_count=$(wc -l < "$csv_file")
+    if [[ "$line_count" -le 1 ]]; then
+        rm -f "$csv_file"
+        REMOVED_COUNT=$((REMOVED_COUNT + 1))
+    fi
+done
+shopt -u nullglob
+if [[ $REMOVED_COUNT -gt 0 ]]; then
+    log_success "Removed $REMOVED_COUNT empty CSV files."
+else
+    log_success "No empty CSV files found."
+fi
+
 # --- Combine CSV to Excel ---
 log_start "✨ Combining CSV reports into a single Excel file..."
 if python3 ./combine_csv.py "${OUTPUT_DIR}"; then

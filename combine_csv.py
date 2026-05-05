@@ -116,7 +116,12 @@ def combine_csv_to_excel_single_sheet():
                 except UnicodeDecodeError:
                     df = pd.read_csv(csv_file, encoding='latin-1')
                 except pd.errors.EmptyDataError:
-                    print(f"Skipping empty CSV file: {csv_file}")
+                    print(f"  ⏭️  Skipping empty CSV file: {file_basename}")
+                    continue
+
+                # Skip CSV yang hanya berisi header tanpa data
+                if df.shape[0] == 0:
+                    print(f"  ⏭️  Skipping '{file_basename}' (no data, header only)")
                     continue
 
                 # Ambil highlight function dari excel_styles (jika ada rule untuk file ini)
