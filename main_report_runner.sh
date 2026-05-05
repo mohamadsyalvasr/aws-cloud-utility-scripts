@@ -39,6 +39,7 @@ chmod +x ./script/aws_ri_report.sh
 chmod +x ./script/aws_sp_report.sh
 chmod +x ./script/ebs_report.sh
 chmod +x ./script/ebs_utilization_report.sh
+chmod +x ./script/ecr_report.sh
 chmod +x ./script/aws_billing_report.sh
 chmod +x ./script/s3_report.sh
 chmod +x ./script/elasticache_report.sh
@@ -66,6 +67,7 @@ REQUIRED_SCRIPTS=(
     "./script/aws_rds_report.sh"
     "./script/ebs_report.sh"
     "./script/ebs_utilization_report.sh"
+    "./script/ecr_report.sh"
     "./script/aws_billing_report.sh"
     "./script/s3_report.sh"
     "./script/elasticache_report.sh"
@@ -154,7 +156,8 @@ else
 fi
 
 # Read configuration from the INI file
-source <(grep = config.ini | sed 's/ *= */=/g')
+# Filter: skip comment lines (starting with ;) and empty lines, then parse key=value pairs
+source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/ *= */=/g')
 
 # Use default values for parallel settings if missing
 PARALLEL_ENABLED="${parallel:-0}"
@@ -243,6 +246,9 @@ if [[ "${ebs_utilization:-0}" == "1" ]]; then
 fi
 if [[ "${ec2:-0}" == "1" ]]; then
     TASKS+=("./script/aws_ec2_report.sh|$(get_report_args "./script/aws_ec2_report.sh" "-r -b -e -s")")
+fi
+if [[ "${ecr:-0}" == "1" ]]; then
+    TASKS+=("./script/ecr_report.sh|$(get_report_args "./script/ecr_report.sh" "-r")")
 fi
 if [[ "${efs:-0}" == "1" ]]; then
     TASKS+=("./script/efs_report.sh|$(get_report_args "./script/efs_report.sh" "-r")")

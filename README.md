@@ -19,6 +19,7 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | `dynamodb_report.sh` | Amazon DynamoDB (NoSQL Database) | Reports on DynamoDB tables (status, item count, size). |
 | `ebs_report.sh` | Amazon EBS (Elastic Block Store) | Detailed inventory of EBS volumes (type, size, IOPS, throughput, state). |
 | `ebs_utilization_report.sh` | Amazon EBS (Elastic Block Store) | EBS volumes with utilization metrics (read/write bytes, disk used %). |
+| `ecr_report.sh` | Amazon ECR (Elastic Container Registry) | Inventory of ECR repositories (image count, tag mutability, scan config, encryption). |
 | `ecs_report.sh` | Amazon ECS (Elastic Container Service) | Reports on ECS Clusters (running/pending tasks, active services). |
 | `efs_report.sh` | Amazon EFS (Elastic File System) | Reports on EFS file systems (size breakdown by storage class, state). |
 | `eks_report.sh` | Amazon EKS (Elastic Kubernetes Service) | Reports on EKS clusters (version, status, creation date). |
@@ -52,6 +53,7 @@ Example `config.ini`:
 ;   ebs_detailed  = Amazon EBS - Elastic Block Store (Block Storage Volumes)
 ;   ebs_utilization = Amazon EBS - Elastic Block Store (Utilization Metrics)
 ;   ec2           = Amazon EC2 - Elastic Compute Cloud (Virtual Servers)
+;   ecr           = Amazon ECR - Elastic Container Registry (Docker Image Registry)
 ;   ecs           = Amazon ECS - Elastic Container Service (Container Orchestration)
 ;   efs           = Amazon EFS - Elastic File System (Managed NFS Storage)
 ;   eks           = Amazon EKS - Elastic Kubernetes Service (Managed Kubernetes)
@@ -77,6 +79,7 @@ dynamodb=1
 ebs_detailed=1
 ebs_utilization=0
 ec2=1
+ecr=1
 ecs=1
 efs=0
 eks=0
@@ -199,6 +202,7 @@ This makes it easy to identify which account the report belongs to when managing
 │   ├── dynamodb_report.sh
 │   ├── ebs_report.sh
 │   ├── ebs_utilization_report.sh
+│   ├── ecr_report.sh
 │   ├── ecs_report.sh
 │   ├── efs_report.sh
 │   ├── eks_report.sh
