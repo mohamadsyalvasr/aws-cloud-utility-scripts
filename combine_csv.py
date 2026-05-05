@@ -3,7 +3,8 @@ import glob
 import os
 import sys
 import subprocess
-import json
+
+from excel_styles import get_formats, get_highlight_function
 
 
 def get_aws_account_info():
@@ -12,7 +13,7 @@ def get_aws_account_info():
     Mengembalikan tuple (account_id, account_name).
     """
     account_id = "UnknownAccountID"
-    account_name = "UnknownAccountName"
+    account_name = ""
 
     # Ambil Account ID dari sts get-caller-identity
     try:
@@ -33,9 +34,6 @@ def get_aws_account_info():
         )
         if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "None":
             account_name = result.stdout.strip()
-        else:
-            # Jika tidak ada alias, gunakan Account ID sebagai fallback
-            account_name = account_id
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         print(f"Warning: Gagal mengambil Account Alias. {e}")
 
@@ -46,10 +44,7 @@ def combine_csv_to_excel_single_sheet():
     """
     Menggabungkan semua file CSV dalam direktori yang diberikan
     ke dalam SATU file Excel, di mana semua data berada dalam SATU sheet
-    dengan pemisah 1 baris antar data file.
-
-    Output filename menggunakan format:
-      Combined_AWS_Reports_<AccountName>_<AccountID>.xlsx
+    dengan pemisah 1 baris kosong antar data file.
     """
     # Pastikan direktori output diberikan sebagai argumen
     if len(sys.argv) < 2:
@@ -63,21 +58,29 @@ def combine_csv_to_excel_single_sheet():
     # Ambil Account Info dari AWS
     if skip_aws_info:
         account_id = "NoAccount"
-        account_name = "Local"
+        account_name = ""
         print("Skipping AWS account info lookup (--skip-aws-info flag).")
     else:
         print("Mengambil informasi AWS Account...")
         account_id, account_name = get_aws_account_info()
         print(f"  Account ID   : {account_id}")
-        print(f"  Account Name : {account_name}")
+        print(f"  Account Name : {account_name if account_name else '(no alias)'}")
 
-    # Sanitize account name untuk digunakan sebagai nama file
-    # Hapus karakter yang tidak valid untuk filename
-    safe_account_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in account_name)
+    # Tentukan label dan filename
+    # Jika account_name kosong atau sama dengan account_id, gunakan account_id saja
+    if not account_name or account_name == account_id:
+        display_label = account_id
+        safe_filename_part = account_id
+    else:
+        display_label = f"{account_name} ({account_id})"
+        safe_filename_part = f"{account_name}_{account_id}"
+
+    # Sanitize untuk filename
+    safe_filename_part = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in safe_filename_part)
 
     output_filename = os.path.join(
         csv_directory,
-        f"Combined_AWS_Reports_{safe_account_name}_{account_id}.xlsx"
+        f"Combined_AWS_Reports_{safe_filename_part}.xlsx"
     )
 
     # Cari semua file CSV di direktori yang ditentukan
@@ -93,78 +96,74 @@ def combine_csv_to_excel_single_sheet():
     try:
         sheet_name = "Combined_Data"
 
-        # Gunakan Pandas ExcelWriter untuk mengelola penulisan
         with pd.ExcelWriter(output_filename, engine='xlsxwriter') as writer:
             workbook = writer.book
             worksheet = workbook.add_worksheet(sheet_name)
 
-            # Format untuk info akun di bagian atas
-            account_info_format = workbook.add_format({
-                'bold': True, 'font_size': 12, 'bg_color': '#4472C4', 'font_color': '#FFFFFF', 'border': 1
-            })
-            # Format untuk header data dan baris pemisah
-            source_header_format = workbook.add_format({
-                'bold': True, 'bg_color': '#DDEBF7', 'border': 1
-            })
-            separator_format = workbook.add_format({
-                'fg_color': '#FFEB9C', 'border': 1
-            })
-            # Format untuk header tabel dan data
-            table_header_format = workbook.add_format({
-                'bold': True, 'border': 1, 'bg_color': '#F2F2F2'
-            })
-            data_format = workbook.add_format({'border': 1})
+            # Load semua format dari excel_styles.py
+            fmt = get_formats(workbook)
 
             # Tulis informasi akun di baris paling atas
             startrow = 0
-            worksheet.write(startrow, 0, f"AWS Account: {account_name} ({account_id})", account_info_format)
+            worksheet.write(startrow, 0, f"AWS Account: {display_label}", fmt['account_info'])
             startrow += 2  # Beri jarak 1 baris kosong setelah info akun
 
             for csv_file in all_csv_files:
                 file_basename = os.path.basename(csv_file)
 
                 try:
-                    # Baca file CSV
                     df = pd.read_csv(csv_file, encoding='utf-8')
                 except UnicodeDecodeError:
-                    # Coba encoding lain jika utf-8 gagal
                     df = pd.read_csv(csv_file, encoding='latin-1')
                 except pd.errors.EmptyDataError:
                     print(f"Skipping empty CSV file: {csv_file}")
                     continue
 
-                # --- Tulis Baris Pemisah/Header Sumber Data ---
+                # Ambil highlight function dari excel_styles (jika ada rule untuk file ini)
+                highlight_fn = get_highlight_function(file_basename)
+                columns_list = df.columns.tolist()
 
-                # 1. Tambahkan baris untuk menandai awal data file ini
-                worksheet.write(startrow, 0, f"Inventory List: {file_basename}", source_header_format)
-
-                # Baris penulisan data DataFrame dimulai 1 baris di bawah baris pemisah/label
+                # --- Tulis Header Sumber Data ---
+                worksheet.write(startrow, 0, f"DATA DARI FILE: {file_basename}", fmt['source_header'])
                 data_start_row = startrow + 1
 
-                # 2. Tulis Header Tabel Manually
+                # --- Tulis Header Tabel dengan kolom No. di depan ---
+                worksheet.write(data_start_row, 0, "No.", fmt['no_header'])
                 for col_num, value in enumerate(df.columns.values):
-                    worksheet.write(data_start_row, col_num, value, table_header_format)
+                    worksheet.write(data_start_row, col_num + 1, value, fmt['table_header'])
 
-                # 3. Tulis Data Tabel Manually
-                # fillna('') untuk menghindari NaN di Excel
+                # --- Tulis Data Tabel dengan nomor urut ---
                 data_rows = df.fillna('').values.tolist()
-
                 current_row = data_start_row + 1
-                for row_data in data_rows:
+
+                for row_idx, row_data in enumerate(data_rows, start=1):
+                    # Cek apakah baris ini perlu di-highlight
+                    is_highlighted = False
+                    if highlight_fn:
+                        is_highlighted = highlight_fn(row_data, columns_list)
+
+                    # Pilih format berdasarkan highlight status
+                    if is_highlighted:
+                        row_no_fmt = fmt['no_not_running']
+                        row_data_fmt = fmt['highlight_not_running']
+                    else:
+                        row_no_fmt = fmt['no']
+                        row_data_fmt = fmt['data']
+
+                    # Tulis No.
+                    worksheet.write(current_row, 0, row_idx, row_no_fmt)
+                    # Tulis data
                     for col_num, value in enumerate(row_data):
-                        worksheet.write(current_row, col_num, value, data_format)
+                        worksheet.write(current_row, col_num + 1, value, row_data_fmt)
                     current_row += 1
 
-                # Hitung baris berikutnya:
-                next_startrow = data_start_row + 1 + df.shape[0]
-
-                # 4. Tulis Baris Pemisah 1 Baris Kosong
-                worksheet.write(next_startrow, 0, "", separator_format)
-
-                # Perbarui startrow untuk iterasi berikutnya
-                startrow = next_startrow + 1
+                # Baris berikutnya: skip 1 baris kosong sebagai pemisah (tanpa warna)
+                startrow = current_row + 1
 
                 print(f"  ✅ '{file_basename}' ditambahkan ({df.shape[0]} baris data)")
+
+            # Set lebar kolom No.
+            worksheet.set_column(0, 0, 5)
 
         print(f"\n✅ Selesai! File disimpan: {output_filename}")
 
