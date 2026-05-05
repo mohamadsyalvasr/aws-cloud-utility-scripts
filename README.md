@@ -9,6 +9,7 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | Script | AWS Service | Description |
 |--------|-------------|-------------|
 | `acm_report.sh` | AWS ACM (Certificate Manager) | Certificates inventory (domain, status, type, key algo, expiry, in-use). |
+| `apigateway_report.sh` | Amazon API Gateway | REST/HTTP/WebSocket APIs inventory (name, type, endpoint, protocol). |
 | `asg_report.sh` | Auto Scaling Group | Reports on Auto Scaling Groups (min/max/desired capacity, instance count). |
 | `aws_billing_report.sh` | AWS Billing & Cost Management | Gathers all consumed services and their costs from Cost Explorer API. |
 | `aws_ec2_report.sh` | Amazon EC2 (Elastic Compute Cloud) | Detailed report on EC2 instances with specs and average CPU/Memory utilization. |
@@ -19,6 +20,8 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | `backup_report.sh` | AWS Backup | Backup Vaults (recovery points, encryption) + Backup Plans (name, last execution). |
 | `cloudfront_report.sh` | Amazon CloudFront (CDN) | Reports on CloudFront Distributions. Global API. |
 | `cloudwatch_report.sh` | Amazon CloudWatch | Alarms inventory (state, threshold) + Log Groups (size, retention). |
+| `codepipeline_report.sh` | AWS CodePipeline | Pipelines inventory (name, ARN, stage count, created/updated dates). |
+| `config_report.sh` | AWS Config | Config rules inventory (compliance status, source type, noncompliant count). |
 | `data_transfer_report.sh` | AWS Data Transfer | Cost breakdown from Cost Explorer + Network In/Out per EC2 instance (GB). |
 | `directconnect_report.sh` | AWS Direct Connect | Connections inventory (state, bandwidth, location, VLAN, partner, LAG). |
 | `dynamodb_report.sh` | Amazon DynamoDB (NoSQL Database) | Reports on DynamoDB tables (status, item count, size). |
@@ -30,15 +33,24 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | `eks_report.sh` | Amazon EKS (Elastic Kubernetes Service) | Reports on EKS clusters (version, status, creation date). |
 | `elasticache_report.sh` | Amazon ElastiCache | Reports on ElastiCache clusters (node type, engine). |
 | `elb_report.sh` | Elastic Load Balancing (ALB/NLB/GWLB) | Reports on all ELBv2 load balancers (type, scheme, state, DNS). |
+| `eventbridge_report.sh` | Amazon EventBridge | Rules inventory across all event buses (state, schedule, target count). |
 | `glue_report.sh` | AWS Glue (ETL) | Jobs (worker type, version, last run) + Crawlers (state, schedule) + Databases. |
 | `iam_report.sh` | AWS IAM (Identity and Access Management) | Reports on IAM Users (create date, password last used). Global API. |
+| `kinesis_report.sh` | Amazon Kinesis Data Streams | Streams inventory (status, mode, shard count, retention, encryption). |
 | `kms_report.sh` | AWS KMS (Key Management Service) | Inventory of KMS keys (alias, state, usage, spec, rotation status). |
 | `lambda_report.sh` | AWS Lambda (Serverless Compute) | Reports on Lambda functions (runtime, handler, code size). |
+| `natgateway_report.sh` | NAT Gateway | NAT Gateways inventory (state, VPC, subnet, connectivity type, IPs). |
+| `opensearch_report.sh` | Amazon OpenSearch Service | Domains inventory (engine version, instance type, storage, VPC, endpoint). |
+| `redshift_report.sh` | Amazon Redshift | Clusters inventory (node type, nodes, status, endpoint, encryption). |
 | `route53_report.sh` | Amazon Route 53 (DNS) | Hosted zones inventory (name, type, record count). Global API. |
 | `s3_report.sh` | Amazon S3 (Simple Storage Service) | Reports on S3 buckets (object count, total size via CloudWatch). |
 | `secrets_manager_report.sh` | AWS Secrets Manager | Secrets inventory (rotation status, last rotated/accessed, created date). |
 | `ses_report.sh` | Amazon SES (Simple Email Service) | Email/domain identities inventory (verification status). |
 | `sns_report.sh` | Amazon SNS (Simple Notification Service) | Topics inventory (subscription count per topic). |
+| `sqs_report.sh` | Amazon SQS (Simple Queue Service) | Queues inventory (type, message count, visibility timeout, retention). |
+| `ssm_params_report.sh` | AWS SSM Parameter Store | Parameters inventory (type, tier, version, last modified). No values exposed. |
+| `stepfunctions_report.sh` | AWS Step Functions | State machines inventory (type, status, creation date, role ARN). |
+| `transitgateway_report.sh` | AWS Transit Gateway | Transit Gateways inventory (state, ASN, attachment count). |
 | `vpc_report.sh` | Amazon VPC (Virtual Private Cloud) | Summary of VPC resources (subnets, IGW, NAT, route tables, security groups, EIPs). |
 | `vpn_report.sh` | AWS VPN (Site-to-Site VPN) | Reports on Site-to-Site VPN connections (state, gateway IDs). |
 | `waf_report.sh` | AWS WAF (Web Application Firewall) | Reports on WAF Web ACLs with allowed/blocked request counts. |
@@ -90,6 +102,18 @@ Example `config.ini`:
 ;   vpn           = AWS VPN - Virtual Private Network (Site-to-Site VPN)
 ;   waf           = AWS WAF - Web Application Firewall (HTTP Traffic Filtering)
 ;   workspaces    = Amazon WorkSpaces (Managed Virtual Desktops / DaaS)
+;   sqs           = Amazon SQS - Simple Queue Service (Message Queuing)
+;   apigateway    = Amazon API Gateway (REST/HTTP/WebSocket API Management)
+;   stepfunctions = AWS Step Functions (Serverless Workflow Orchestration)
+;   natgateway    = NAT Gateway (VPC Network Address Translation)
+;   transitgateway = AWS Transit Gateway (Multi-VPC/Account Network Hub)
+;   kinesis       = Amazon Kinesis (Real-Time Data Streaming)
+;   redshift      = Amazon Redshift (Data Warehouse)
+;   opensearch    = Amazon OpenSearch Service (Search & Analytics)
+;   codepipeline  = AWS CodePipeline (CI/CD Pipeline Management)
+;   ssm_params    = AWS SSM Parameter Store (Configuration Management)
+;   eventbridge   = Amazon EventBridge (Serverless Event Bus)
+;   config        = AWS Config (Resource Compliance & Configuration)
 ; =============================================================================
 
 acm=1
@@ -126,6 +150,18 @@ vpc=0
 vpn=1
 waf=0
 workspaces=0
+sqs=0
+apigateway=0
+stepfunctions=0
+natgateway=0
+transitgateway=0
+kinesis=0
+redshift=0
+opensearch=0
+codepipeline=0
+ssm_params=0
+eventbridge=0
+config=0
 
 ; =============================================================================
 ; Parallel Configuration
@@ -227,6 +263,7 @@ This makes it easy to identify which account the report belongs to when managing
 │   └── report_registry.sh    # Report definitions & task builder
 ├── script/                     # All report scripts
 │   ├── acm_report.sh
+│   ├── apigateway_report.sh
 │   ├── asg_report.sh
 │   ├── aws_billing_report.sh
 │   ├── aws_ec2_report.sh
@@ -237,6 +274,8 @@ This makes it easy to identify which account the report belongs to when managing
 │   ├── backup_report.sh
 │   ├── cloudfront_report.sh
 │   ├── cloudwatch_report.sh
+│   ├── codepipeline_report.sh
+│   ├── config_report.sh
 │   ├── data_transfer_report.sh
 │   ├── directconnect_report.sh
 │   ├── dynamodb_report.sh
@@ -248,15 +287,24 @@ This makes it easy to identify which account the report belongs to when managing
 │   ├── eks_report.sh
 │   ├── elasticache_report.sh
 │   ├── elb_report.sh
+│   ├── eventbridge_report.sh
 │   ├── glue_report.sh
 │   ├── iam_report.sh
+│   ├── kinesis_report.sh
 │   ├── kms_report.sh
 │   ├── lambda_report.sh
+│   ├── natgateway_report.sh
+│   ├── opensearch_report.sh
+│   ├── redshift_report.sh
 │   ├── route53_report.sh
 │   ├── s3_report.sh
 │   ├── secrets_manager_report.sh
 │   ├── ses_report.sh
 │   ├── sns_report.sh
+│   ├── sqs_report.sh
+│   ├── ssm_params_report.sh
+│   ├── stepfunctions_report.sh
+│   ├── transitgateway_report.sh
 │   ├── vpc_report.sh
 │   ├── vpn_report.sh
 │   └── waf_report.sh

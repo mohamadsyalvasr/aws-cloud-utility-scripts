@@ -57,7 +57,7 @@ mkdir -p "${OUTPUT_DIR}"
 log_success "Output directory created: ${OUTPUT_DIR}"
 
 # --- Read Configuration ---
-source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/ *= */=/g')
+source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/\r//g' | sed 's/ *= */=/g')
 
 PARALLEL_ENABLED="${parallel:-0}"
 MAX_PARALLEL="${max_parallel:-3}"
