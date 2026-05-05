@@ -49,6 +49,18 @@ REPORT_DEFINITIONS=(
     "vpn|./script/vpn_report.sh|-r"
     "waf|./script/waf_report.sh|-r -b -e"
     "workspaces|./script/aws_workspaces_report.sh|-r"
+    "sqs|./script/sqs_report.sh|-r"
+    "apigateway|./script/apigateway_report.sh|-r"
+    "stepfunctions|./script/stepfunctions_report.sh|-r"
+    "natgateway|./script/natgateway_report.sh|-r"
+    "transitgateway|./script/transitgateway_report.sh|-r"
+    "kinesis|./script/kinesis_report.sh|-r"
+    "redshift|./script/redshift_report.sh|-r"
+    "opensearch|./script/opensearch_report.sh|-r"
+    "codepipeline|./script/codepipeline_report.sh|-r"
+    "ssm_params|./script/ssm_params_report.sh|-r"
+    "eventbridge|./script/eventbridge_report.sh|-r"
+    "config|./script/config_report.sh|-r"
 )
 
 # Build the TASKS array based on config values and CLI arguments.
@@ -61,7 +73,10 @@ build_task_list() {
 
         # Check if this report is enabled in config
         # Use indirect variable reference to get the config value
-        local config_value="${!config_key:-0}"
+        # Strip any whitespace/carriage returns for robustness
+        local raw_value="${!config_key:-0}"
+        local config_value
+        config_value=$(echo "$raw_value" | tr -d '[:space:]')
 
         if [[ "$config_value" == "1" ]]; then
             local run_args=""
