@@ -311,18 +311,48 @@ fi
 # 2. Run Collected Tasks
 if [[ "$PARALLEL_ENABLED" == "1" ]]; then
     log_start "⏳ Running reports in PARALLEL mode (Max: ${MAX_PARALLEL})..."
+    PIDS=()
+    TASK_NAMES=()
+    
     for task_info in "${TASKS[@]}"; do
         IFS='|' read -r script_path args <<< "$task_info"
         
-        # Manage parallel limit
-        while [[ $(jobs -r | wc -l) -ge $MAX_PARALLEL ]]; do
-            sleep 1
+        # Manage parallel limit - wait for a slot to open
+        while [[ ${#PIDS[@]} -ge $MAX_PARALLEL ]]; do
+            # Wait for any one job to finish
+            NEW_PIDS=()
+            for pid in "${PIDS[@]}"; do
+                if kill -0 "$pid" 2>/dev/null; then
+                    NEW_PIDS+=("$pid")
+                fi
+            done
+            PIDS=("${NEW_PIDS[@]}")
+            if [[ ${#PIDS[@]} -ge $MAX_PARALLEL ]]; then
+                sleep 1
+            fi
         done
         
-        # Run task in background
-        execute_task "$script_path" $args &
+        # Run task in background, redirect output to log file
+        task_name=$(basename "$script_path")
+        log_start "  ↳ Starting ${task_name} (background)..."
+        execute_task "$script_path" $args > "${RESULT_DIR}/${task_name}.log" 2>&1 &
+        PIDS+=($!)
+        TASK_NAMES+=("$task_name")
     done
-    wait
+    
+    # Wait for ALL remaining background jobs to finish
+    log_start "⏳ Waiting for all parallel tasks to complete..."
+    for pid in "${PIDS[@]}"; do
+        wait "$pid" 2>/dev/null || true
+    done
+    
+    # Print collected logs
+    log_start "📋 Task output summary:"
+    for task_name in "${TASK_NAMES[@]}"; do
+        if [[ -f "${RESULT_DIR}/${task_name}.log" ]]; then
+            cat "${RESULT_DIR}/${task_name}.log" >&2
+        fi
+    done
 else
     log_start "⏳ Running reports in SEQUENTIAL mode..."
     for task_info in "${TASKS[@]}"; do
@@ -331,24 +361,31 @@ else
     done
 fi
 
-log_success "Report generation process completed."
+log_success "All report tasks completed."
 
 # --- GENERATE SUMMARY ---
 echo "--------------------------------------------------"
 echo "             AWS REPORTS SUMMARY                  "
 echo "--------------------------------------------------"
 TOTAL_TASKS=${#TASKS[@]}
-SUCCESS_COUNT=$(ls -1 "${RESULT_DIR}"/*.status 2>/dev/null | xargs grep -l "SUCCESS" | wc -l)
-FAILED_COUNT=$(ls -1 "${RESULT_DIR}"/*.status 2>/dev/null | xargs grep -l "FAILED" | wc -l)
+
+# Count results safely (handle case where no .status files exist)
+SUCCESS_COUNT=0
+FAILED_COUNT=0
+if ls "${RESULT_DIR}"/*.status >/dev/null 2>&1; then
+    SUCCESS_COUNT=$(grep -rl "SUCCESS" "${RESULT_DIR}/" 2>/dev/null | wc -l)
+    FAILED_COUNT=$(grep -rl "FAILED" "${RESULT_DIR}/" 2>/dev/null | wc -l)
+fi
 
 echo "Total Reports Attempted: $TOTAL_TASKS"
 echo "✅ Successful: $SUCCESS_COUNT"
 echo "❌ Failed:     $FAILED_COUNT"
 
 if [[ $FAILED_COUNT -gt 0 ]]; then
-    echo -e "\nFailed Reports List:"
+    echo ""
+    echo "Failed Reports List:"
     for f in "${RESULT_DIR}"/*.status; do
-        if grep -q "FAILED" "$f"; then
+        if [[ -f "$f" ]] && grep -q "FAILED" "$f"; then
             task_file=$(basename "$f" .status)
             echo " - ${task_file//_/ }"
         fi
