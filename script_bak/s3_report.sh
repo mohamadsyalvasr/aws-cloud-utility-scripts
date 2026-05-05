@@ -86,7 +86,7 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
         --period "$PERIOD" \
         --statistics "Average" \
         --region "$REGION" \
-        --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+        --query "Datapoints[0].Average" \
         --output text)
         
     # Get object count from CloudWatch
@@ -99,7 +99,7 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
         --period "$PERIOD" \
         --statistics "Average" \
         --region "$REGION" \
-        --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+        --query "Datapoints[0].Average" \
         --output text)
 
     # Handle null or empty values

@@ -156,7 +156,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
 
             AVG_MEMORY_PERCENT=$(aws cloudwatch get-metric-statistics --region "$region" \
@@ -167,7 +167,7 @@ for region in "${REGIONS[@]}"; do
                 --end-time "$END_TIME" \
                 --period "$PERIOD" \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
+                --query "Datapoints[0].Average" \
                 --output text)
             
             if [ -z "$AVG_MEMORY_PERCENT" ] || [ "$AVG_MEMORY_PERCENT" = "null" ]; then

@@ -81,8 +81,8 @@ printf '"Name","Status","Kubernetes version","Support period","Upgrade policy","
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
 
-    # Get a list of all EKS clusters in the region (--no-paginate to get all)
-    EKS_CLUSTERS=$(aws eks list-clusters --region "$region" --query 'clusters' --output json --no-paginate)
+    # Get a list of all EKS clusters in the region
+    EKS_CLUSTERS=$(aws eks list-clusters --region "$region" --query 'clusters' --output json)
     
     if [[ "$(echo "$EKS_CLUSTERS" | jq 'length')" -gt 0 ]]; then
         echo "$EKS_CLUSTERS" | jq -c '.[]' | while read -r cluster_name; do

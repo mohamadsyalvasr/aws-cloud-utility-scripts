@@ -1,6 +1,6 @@
 #!/bin/bash
-# lambda_report.sh
-# Gathers a report on Lambda functions.
+# asg_report.sh
+# Gathers a report on Auto Scaling Groups.
 
 set -euo pipefail
 
@@ -10,7 +10,7 @@ YEAR=$(date +"%Y")
 MONTH=$(date +"%m")
 DAY=$(date +"%d")
 OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
-OUTPUT_FILE="${OUTPUT_DIR}/lambda_report.csv"
+OUTPUT_FILE="${OUTPUT_DIR}/asg_report.csv"
 
 # --- Logging ---
 log() {
@@ -38,18 +38,17 @@ shift $((OPTIND-1))
 log "✍️ Preparing output file: $OUTPUT_FILE"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
-printf '"FunctionName","Runtime","Handler","CodeSize","LastModified","Region"\n' > "$OUTPUT_FILE"
+printf '"AutoScalingGroupName","MinSize","MaxSize","DesiredCapacity","Instances","CreatedTime","Region"\n' > "$OUTPUT_FILE"
 
 for region in "${REGIONS[@]}"; do
     log "Processing Region: \033[1;33m$region\033[0m"
     
-    # list-functions returns max 50 per call; use --no-paginate to get all
-    LAMBDA_DATA=$(aws lambda list-functions --region "$region" --output json --no-paginate)
+    ASG_DATA=$(aws autoscaling describe-auto-scaling-groups --region "$region" --output json)
     
-    if [[ "$(echo "$LAMBDA_DATA" | jq '.Functions | length')" -gt 0 ]]; then
-        echo "$LAMBDA_DATA" | jq -r --arg r "$region" '.Functions[] | [.FunctionName, (.Runtime // "N/A"), (.Handler // "N/A"), .CodeSize, .LastModified, $r] | @csv' >> "$OUTPUT_FILE"
+    if [[ "$(echo "$ASG_DATA" | jq '.AutoScalingGroups | length')" -gt 0 ]]; then
+        echo "$ASG_DATA" | jq -r --arg r "$region" '.AutoScalingGroups[] | [.AutoScalingGroupName, .MinSize, .MaxSize, .DesiredCapacity, (.Instances | length), .CreatedTime, $r] | @csv' >> "$OUTPUT_FILE"
     else
-        log "  [Lambda] No functions found."
+        log "  [ASG] No Auto Scaling Groups found."
     fi
      log "Region \033[1;33m$region\033[0m Complete."
 done
