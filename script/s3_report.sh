@@ -44,7 +44,7 @@ check_dependencies
 log "✍️ Preparing output file: $OUTPUT_FILE"
 
 # Create CSV header with the requested columns
-printf '"Bucket Name","Region","Total Objects","Total Size (GB)","Creation Date"\n' > "$OUTPUT_FILE"
+printf '"Bucket Name","Region","Total Objects","Total Size (GB)","Versioning","MFA Delete","Creation Date"\n' > "$OUTPUT_FILE"
 
 # Check if required variables are set by main_report_runner.sh
 if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
@@ -75,6 +75,11 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
     if [ -z "$REGION" ] || [ "$REGION" = "null" ]; then
         REGION="us-east-1"
     fi
+
+    # Get versioning status
+    VERSIONING_STATUS=$(aws s3api get-bucket-versioning --bucket "$bucket" --output json 2>/dev/null) || VERSIONING_STATUS="{}"
+    VERSIONING=$(echo "$VERSIONING_STATUS" | jq -r '.Status // "Disabled"')
+    MFA_DELETE=$(echo "$VERSIONING_STATUS" | jq -r '.MFADelete // "Disabled"')
 
     # Get total size from CloudWatch
     TOTAL_SIZE_BYTES=$(aws cloudwatch get-metric-statistics \
@@ -113,11 +118,13 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
     # Convert bytes to GB
     TOTAL_SIZE_GB=$(echo "scale=2; ${TOTAL_SIZE_BYTES} / 1073741824" | bc)
 
-    printf '"%s","%s","%s","%s","%s"\n' \
+    printf '"%s","%s","%s","%s","%s","%s","%s"\n' \
         "$bucket" \
         "$REGION" \
         "$OBJECT_COUNT" \
         "$TOTAL_SIZE_GB" \
+        "$VERSIONING" \
+        "$MFA_DELETE" \
         "$CREATED_DATE" >> "$OUTPUT_FILE"
 done
 

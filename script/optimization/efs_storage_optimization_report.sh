@@ -118,7 +118,9 @@ for region in "${REGIONS[@]}"; do
     if [[ "$EFS_COUNT" -gt 0 ]]; then
         log "  Found $EFS_COUNT EFS file system(s) in $region"
 
+        EFS_IDX=0
         echo "$EFS_DATA" | jq -c '.[]' | while read -r fs; do
+            EFS_IDX=$((EFS_IDX + 1))
             FS_ID=$(echo "$fs" | jq -r '.FileSystemId')
             FS_NAME=$(echo "$fs" | jq -r '(.Tags // [])[] | select(.Key == "Name") | .Value // "N/A"')
             FS_NAME="${FS_NAME:-N/A}"
@@ -131,7 +133,7 @@ for region in "${REGIONS[@]}"; do
             # Get creation time for "provisioned > 30 days" check
             CREATION_TOKEN=$(echo "$fs" | jq -r '.CreationTime // empty')
 
-            log "  Analyzing EFS: $FS_ID ($FS_NAME)"
+            log "  [$EFS_IDX/$EFS_COUNT] Analyzing: $FS_ID ($FS_NAME)"
 
             # Convert sizes to GiB (1 GiB = 1073741824 bytes)
             TOTAL_SIZE_GIB=$(echo "$TOTAL_SIZE_BYTES / 1073741824" | bc -l | xargs printf "%.2f")

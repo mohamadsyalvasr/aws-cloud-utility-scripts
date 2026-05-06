@@ -61,6 +61,9 @@ REPORT_DEFINITIONS=(
     "ssm_params|./script/ssm_params_report.sh|-r"
     "eventbridge|./script/eventbridge_report.sh|-r"
     "config|./script/config_report.sh|-r"
+    "sagemaker|./script/sagemaker_report.sh|-r"
+    "bedrock|./script/bedrock_report.sh|-r"
+    "lightsail|./script/lightsail_report.sh|-r"
     # --- Price Optimization Reports ---
     "opt_ec2_rightsizing|./script/optimization/ec2_rightsizing_report.sh|-r -b -e"
     "opt_rds_rightsizing|./script/optimization/rds_rightsizing_report.sh|-r -b -e"
@@ -70,16 +73,50 @@ REPORT_DEFINITIONS=(
     "opt_data_transfer|./script/optimization/data_transfer_optimization_report.sh|-r -b -e"
     "opt_s3_storage|./script/optimization/s3_storage_optimization_report.sh|-r -b -e"
     "opt_efs_storage|./script/optimization/efs_storage_optimization_report.sh|-r -b -e"
+    "opt_trusted_advisor|./script/optimization/trusted_advisor_report.sh|-r -b -e"
     "opt_summary|./script/optimization/optimization_summary_report.sh|-r -b -e"
 )
 
 # Build the TASKS array based on config values and CLI arguments.
 # Requires: PASS_THROUGH_ARGS array to be set.
+# Optional: RUN_MODE variable (comma-separated: inventory, optimize, security, all). Default: all
 build_task_list() {
     TASKS=()
+    local mode="${RUN_MODE:-all}"
 
     for definition in "${REPORT_DEFINITIONS[@]}"; do
         IFS='|' read -r config_key script_path needed_args <<< "$definition"
+
+        # Filter by mode (supports comma-separated modes like "optimize,security")
+        if [[ "$mode" != "all" ]]; then
+            local include=false
+
+            # Check each mode in the comma-separated list
+            IFS=',' read -r -a modes <<< "$mode"
+            for m in "${modes[@]}"; do
+                case "$m" in
+                    inventory)
+                        if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+                            include=true
+                        fi
+                        ;;
+                    optimize)
+                        if [[ "$config_key" == opt_* ]]; then
+                            include=true
+                        fi
+                        ;;
+                    security)
+                        if [[ "$config_key" == sec_* ]]; then
+                            include=true
+                        fi
+                        ;;
+                esac
+            done
+
+            if [[ "$include" == "false" ]]; then
+                continue
+            fi
+        fi
 
         # Check if this report is enabled in config
         # Use indirect variable reference to get the config value

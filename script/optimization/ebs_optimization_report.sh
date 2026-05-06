@@ -113,14 +113,16 @@ for region in "${REGIONS[@]}"; do
     if [[ "$VOLUME_COUNT" -gt 0 ]]; then
         log "  Found $VOLUME_COUNT in-use volume(s) in $region"
 
+        CURRENT_IDX=0
         echo "$VOLUMES_DATA" | jq -c '.[]' | while read -r volume; do
+            CURRENT_IDX=$((CURRENT_IDX + 1))
             VOLUME_ID=$(echo "$volume" | jq -r '.VolumeId')
             VOLUME_TYPE=$(echo "$volume" | jq -r '.VolumeType')
             VOLUME_SIZE=$(echo "$volume" | jq -r '.Size')
             PROVISIONED_IOPS=$(echo "$volume" | jq -r '.Iops // 0')
             ATTACHED_INSTANCE=$(echo "$volume" | jq -r '.Attachments[0].InstanceId // "N/A"')
 
-            log "  Analyzing volume: $VOLUME_ID ($VOLUME_TYPE, ${VOLUME_SIZE} GiB)"
+            log "  [$CURRENT_IDX/$VOLUME_COUNT] Analyzing: $VOLUME_ID ($VOLUME_TYPE, ${VOLUME_SIZE} GiB)"
 
             # --- Get CloudWatch Metrics ---
 

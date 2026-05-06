@@ -64,6 +64,7 @@ MAX_PARALLEL="${max_parallel:-3}"
 
 # --- Parse CLI Arguments ---
 PASS_THROUGH_ARGS=()
+export RUN_MODE="all"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
@@ -71,15 +72,31 @@ while [[ "$#" -gt 0 ]]; do
         -e|--end)     PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1"); export END_DATE="$1" ;;
         -s|--sum-ebs) PASS_THROUGH_ARGS+=("$1") ;;
         -f|--filename) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
+        -m|--mode)    shift; RUN_MODE="$1" ;;
         -h|--help)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-s] [-f filename]"
-            echo "  Edit config.ini to select which reports to run."
+            echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-s] [-f filename]"
+            echo ""
+            echo "Modes (comma-separated for multiple):"
+            echo "  all                Run all enabled reports (default)"
+            echo "  inventory          Run only inventory reports"
+            echo "  optimize           Run only price optimization reports (opt_* keys)"
+            echo "  security           Run only security check reports (sec_* keys)"
+            echo "  optimize,security  Run both optimization and security (skip inventory)"
+            echo ""
+            echo "Examples:"
+            echo "  $0 -b 2025-08-01 -e 2025-08-31                    # Run all"
+            echo "  $0 -b 2025-08-01 -e 2025-08-31 -m optimize       # Only optimization"
+            echo "  $0 -b 2025-08-01 -e 2025-08-31 -m optimize,security  # Opt + Security"
+            echo ""
+            echo "  Edit config.ini to select which reports to run within each mode."
             exit 0
             ;;
         *) PASS_THROUGH_ARGS+=("$1") ;;
     esac
     shift
 done
+
+log_start "📋 Run mode: ${RUN_MODE}"
 
 # --- Build & Run Tasks ---
 build_task_list
@@ -107,48 +124,51 @@ else
     log_success "No empty CSV files found."
 fi
 
-# --- Combine CSV to Excel ---
-log_start "✨ Combining CSV reports into a single Excel file..."
-if python3 ./combine_csv.py "${OUTPUT_DIR}"; then
-    EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
-    if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
-        EXCEL_BASENAME=$(basename "$EXCEL_FILE")
-        log_success "CSV reports combined into Excel: ${EXCEL_FILE}"
-        cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
-        log_success "${EXCEL_BASENAME} copied to current directory."
-    else
-        log_error "Excel file not found after combining."
-    fi
-else
-    log_error "FAILED to combine CSV reports into Excel."
-fi
-
-# --- Combine Optimization Reports to Excel ---
-# Only run if at least one optimization report is enabled
-OPT_ENABLED=0
-for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_summary; do
-    raw_value="${!opt_key:-0}"
-    clean_value=$(echo "$raw_value" | tr -d '[:space:]')
-    if [[ "$clean_value" == "1" ]]; then
-        OPT_ENABLED=1
-        break
-    fi
-done
-
-if [[ "$OPT_ENABLED" == "1" ]]; then
-    log_start "✨ Combining optimization reports into a single Excel file..."
-    if python3 ./combine_optimization_excel.py "${OUTPUT_DIR}"; then
-        OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
-        if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
-            OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
-            log_success "Optimization reports combined into Excel: ${OPT_EXCEL_FILE}"
-            cp "$OPT_EXCEL_FILE" "./${OPT_EXCEL_BASENAME}"
-            log_success "${OPT_EXCEL_BASENAME} copied to current directory."
+# --- Combine CSV to Excel (only if inventory mode is active) ---
+if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
+    log_start "✨ Combining CSV reports into a single Excel file..."
+    if python3 ./combine_csv.py "${OUTPUT_DIR}"; then
+        EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
+        if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
+            EXCEL_BASENAME=$(basename "$EXCEL_FILE")
+            log_success "CSV reports combined into Excel: ${EXCEL_FILE}"
+            cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
+            log_success "${EXCEL_BASENAME} copied to current directory."
         else
-            log_error "Optimization Excel file not found after combining."
+            log_error "Excel file not found after combining."
         fi
     else
-        log_error "FAILED to combine optimization reports into Excel."
+        log_error "FAILED to combine CSV reports into Excel."
+    fi
+fi
+
+# --- Combine Optimization Reports to Excel (only if optimize mode is active) ---
+if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
+    OPT_ENABLED=0
+    for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_trusted_advisor opt_summary; do
+        raw_value="${!opt_key:-0}"
+        clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+        if [[ "$clean_value" == "1" ]]; then
+            OPT_ENABLED=1
+            break
+        fi
+    done
+
+    if [[ "$OPT_ENABLED" == "1" ]]; then
+        log_start "✨ Combining optimization reports into a single Excel file..."
+        if python3 ./combine_optimization_excel.py "${OUTPUT_DIR}"; then
+            OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
+            if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
+                OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
+                log_success "Optimization reports combined into Excel: ${OPT_EXCEL_FILE}"
+                cp "$OPT_EXCEL_FILE" "./${OPT_EXCEL_BASENAME}"
+                log_success "${OPT_EXCEL_BASENAME} copied to current directory."
+            else
+                log_error "Optimization Excel file not found after combining."
+            fi
+        else
+            log_error "FAILED to combine optimization reports into Excel."
+        fi
     fi
 fi
 
