@@ -62,13 +62,23 @@ for region in "${REGIONS[@]}"; do
                 --region "$region" \
                 --workspace-ids "$WORKSPACE_ID" \
                 --query 'WorkspacesConnectionStatus[0].LastKnownUserConnectionTimestamp' \
-                --output text)
+                --output text 2>/dev/null || echo "None")
 
-            # The API returns an ISO 8601 timestamp string (not Unix timestamp)
-            if [ -n "$LAST_ACTIVE_RAW" ] && [ "$LAST_ACTIVE_RAW" != "None" ] && [ "$LAST_ACTIVE_RAW" != "null" ]; then
-                LAST_ACTIVE_TIME=$(date -d "$LAST_ACTIVE_RAW" -u +"%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || echo "$LAST_ACTIVE_RAW")
-            else
-                LAST_ACTIVE_TIME="N/A"
+            # Handle the timestamp - AWS CLI may return:
+            # - "None" if no connection ever made
+            # - An epoch float like "1705312200.0"
+            # - An ISO 8601 string like "2024-01-15T10:30:00+00:00"
+            LAST_ACTIVE_TIME="N/A"
+            if [[ -n "$LAST_ACTIVE_RAW" && "$LAST_ACTIVE_RAW" != "None" && "$LAST_ACTIVE_RAW" != "null" ]]; then
+                # Check if it's a numeric epoch timestamp (with possible decimal)
+                if [[ "$LAST_ACTIVE_RAW" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                    # It's an epoch timestamp - convert integer part
+                    EPOCH_INT=$(echo "$LAST_ACTIVE_RAW" | cut -d'.' -f1)
+                    LAST_ACTIVE_TIME=$(date -u -d "@${EPOCH_INT}" +"%Y-%m-%d %H:%M:%S UTC" 2>/dev/null || echo "$LAST_ACTIVE_RAW")
+                else
+                    # It's likely ISO 8601 - use as-is (already human readable)
+                    LAST_ACTIVE_TIME="$LAST_ACTIVE_RAW"
+                fi
             fi
 
             printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
