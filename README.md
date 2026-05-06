@@ -8,7 +8,7 @@ A comprehensive toolkit for AWS infrastructure **inventory reporting**, **cost o
 |------|-------------|------|
 | **Inventory** | Generate detailed CSV/Excel reports for 50+ AWS services | `--mode inventory` |
 | **Optimize** | Analyze resource utilization and recommend cost savings | `--mode optimize` |
-| **Security** | Audit security configurations and compliance *(coming soon)* | `--mode security` |
+| **Security** | Audit security configurations and compliance | `--mode security` |
 
 All modes can be combined: `--mode optimize,security`
 
@@ -60,9 +60,12 @@ opt_idle_resources=1
 opt_s3_storage=1
 opt_summary=1
 
-# Security reports (sec_ prefix) — coming soon
-# sec_iam_audit=1
-# sec_sg_check=1
+# Security reports (sec_ prefix)
+sec_trusted_advisor=1
+sec_iam_audit=1
+sec_sg_audit=1
+sec_encryption_audit=1
+sec_summary=1
 
 # Parallel execution
 parallel=1
@@ -75,7 +78,8 @@ max_parallel=2
 export/aws-cloud-report-2025-08-31/
 ├── *.csv                                          # Individual report CSVs
 ├── Combined_AWS_Reports_<Account>.xlsx            # Inventory Excel (all reports in one sheet)
-└── AWS_Optimization_Report_<Account>.xlsx         # Optimization Excel (multi-sheet)
+├── AWS_Optimization_Report_<Account>.xlsx         # Optimization Excel (multi-sheet)
+└── AWS_Security_Report_<Account>.xlsx             # Security Excel (multi-sheet, severity color-coded)
 
 aws_reports_2025-08-31.zip                         # Everything zipped
 ```
@@ -88,6 +92,7 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 |----------|-------------|
 | [Inventory Reports](docs/inventory-reports.md) | Full list of 50+ inventory scripts with columns and details |
 | [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, pricing data, recommendations |
+| [Security Audit](docs/security-audit.md) | How security auditing works, Trusted Advisor integration, severity levels |
 | [Configuration Guide](docs/configuration.md) | All config.ini options, environment variables, and modes |
 | [Adding New Reports](docs/adding-reports.md) | How to add your own report scripts to the framework |
 
@@ -99,6 +104,7 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 ├── config.ini                          # Report toggles
 ├── combine_csv.py                      # Inventory → Excel
 ├── combine_optimization_excel.py       # Optimization → multi-sheet Excel
+├── combine_security_excel.py           # Security → multi-sheet Excel (severity colors)
 ├── excel_styles.py                     # Excel formatting
 ├── lib/                                # Shared libraries
 │   ├── logger.sh                      #   Logging
@@ -108,6 +114,7 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 │   └── pricing_fallback.json          #   Offline pricing reference
 ├── script/                             # Inventory reports (50+ scripts)
 ├── script/optimization/                # Cost optimization reports
+├── script/security/                    # Security audit reports
 ├── docs/                               # Documentation
 └── web/                                # Web UI (optional)
 ```

@@ -31,10 +31,17 @@ opt_trusted_advisor=0    # Trusted Advisor recommendations
 opt_summary=0            # Aggregated summary
 
 ; =============================================================================
-; Security Reports (sec_ prefix) — coming soon
+; Security Audit Reports (sec_ prefix)
 ; =============================================================================
-# sec_iam_audit=0
-# sec_sg_check=0
+sec_trusted_advisor=0    # Trusted Advisor security (primary source)
+sec_iam_audit=0          # IAM security audit (MFA, keys, policies)
+sec_sg_audit=0           # Security Group audit (open ports)
+sec_s3_audit=0           # S3 bucket security (public access, encryption)
+sec_encryption_audit=0   # Encryption audit (EBS/RDS/KMS)
+sec_network_audit=0      # Network security (VPC flow logs, subnets)
+sec_logging_audit=0      # Logging & monitoring (CloudTrail, GuardDuty)
+sec_securityhub=0        # Security Hub findings
+sec_summary=0            # Security summary report
 
 ; =============================================================================
 ; Parallel Configuration

@@ -172,6 +172,36 @@ if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
     fi
 fi
 
+# --- Combine Security Reports to Excel (only if security mode is active) ---
+if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"security"* ]]; then
+    SEC_ENABLED=0
+    for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
+        raw_value="${!sec_key:-0}"
+        clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+        if [[ "$clean_value" == "1" ]]; then
+            SEC_ENABLED=1
+            break
+        fi
+    done
+
+    if [[ "$SEC_ENABLED" == "1" ]]; then
+        log_start "✨ Combining security reports into a single Excel file..."
+        if python3 ./combine_security_excel.py "${OUTPUT_DIR}"; then
+            SEC_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Security_Report_*.xlsx" 2>/dev/null | head -1)
+            if [[ -n "$SEC_EXCEL_FILE" && -f "$SEC_EXCEL_FILE" ]]; then
+                SEC_EXCEL_BASENAME=$(basename "$SEC_EXCEL_FILE")
+                log_success "Security reports combined into Excel: ${SEC_EXCEL_FILE}"
+                cp "$SEC_EXCEL_FILE" "./${SEC_EXCEL_BASENAME}"
+                log_success "${SEC_EXCEL_BASENAME} copied to current directory."
+            else
+                log_error "Security Excel file not found after combining."
+            fi
+        else
+            log_error "FAILED to combine security reports into Excel."
+        fi
+    fi
+fi
+
 # --- Zip Output ---
 log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"

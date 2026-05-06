@@ -75,6 +75,16 @@ REPORT_DEFINITIONS=(
     "opt_efs_storage|./script/optimization/efs_storage_optimization_report.sh|-r -b -e"
     "opt_trusted_advisor|./script/optimization/trusted_advisor_report.sh|-r -b -e"
     "opt_summary|./script/optimization/optimization_summary_report.sh|-r -b -e"
+    # --- Security Audit Reports ---
+    "sec_trusted_advisor|./script/security/sec_trusted_advisor.sh|"
+    "sec_iam_audit|./script/security/sec_iam_audit.sh|"
+    "sec_sg_audit|./script/security/sec_sg_audit.sh|-r"
+    "sec_s3_audit|./script/security/sec_s3_audit.sh|"
+    "sec_encryption_audit|./script/security/sec_encryption_audit.sh|-r"
+    "sec_network_audit|./script/security/sec_network_audit.sh|-r"
+    "sec_logging_audit|./script/security/sec_logging_audit.sh|-r"
+    "sec_securityhub|./script/security/sec_securityhub.sh|-r"
+    "sec_summary|./script/security/sec_summary_report.sh|"
 )
 
 # Build the TASKS array based on config values and CLI arguments.
