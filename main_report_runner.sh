@@ -123,6 +123,35 @@ else
     log_error "FAILED to combine CSV reports into Excel."
 fi
 
+# --- Combine Optimization Reports to Excel ---
+# Only run if at least one optimization report is enabled
+OPT_ENABLED=0
+for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_summary; do
+    raw_value="${!opt_key:-0}"
+    clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+    if [[ "$clean_value" == "1" ]]; then
+        OPT_ENABLED=1
+        break
+    fi
+done
+
+if [[ "$OPT_ENABLED" == "1" ]]; then
+    log_start "✨ Combining optimization reports into a single Excel file..."
+    if python3 ./combine_optimization_excel.py "${OUTPUT_DIR}"; then
+        OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
+        if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
+            OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
+            log_success "Optimization reports combined into Excel: ${OPT_EXCEL_FILE}"
+            cp "$OPT_EXCEL_FILE" "./${OPT_EXCEL_BASENAME}"
+            log_success "${OPT_EXCEL_BASENAME} copied to current directory."
+        else
+            log_error "Optimization Excel file not found after combining."
+        fi
+    else
+        log_error "FAILED to combine optimization reports into Excel."
+    fi
+fi
+
 # --- Zip Output ---
 log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
