@@ -4,7 +4,7 @@ This repository contains a set of Bash scripts designed to automate the generati
 
 Reports are designed to run on **AWS CloudShell** or any environment with AWS CLI configured.
 
-## Included Scripts (Alphabetical)
+## Included Scripts
 
 | Script | AWS Service | Description |
 |--------|-------------|-------------|
@@ -55,6 +55,86 @@ Reports are designed to run on **AWS CloudShell** or any environment with AWS CL
 | `vpn_report.sh` | AWS VPN (Site-to-Site VPN) | Reports on Site-to-Site VPN connections (state, gateway IDs). |
 | `waf_report.sh` | AWS WAF (Web Application Firewall) | Reports on WAF Web ACLs with allowed/blocked request counts. |
 
+## Price Optimization Reports
+
+In addition to inventory reports, this tool includes **cost optimization analysis** scripts that analyze resource utilization and generate actionable cost-saving recommendations. All optimization reports produce CSV outputs that are combined into a **single multi-sheet Excel file** (`AWS_Optimization_Report_*.xlsx`).
+
+### Optimization Scripts
+
+| Script | Category | Description |
+|--------|----------|-------------|
+| `ec2_rightsizing_report.sh` | EC2 Right-Sizing | Identifies over-provisioned EC2 instances based on CPU/Memory utilization and recommends downsizing. |
+| `rds_rightsizing_report.sh` | RDS Right-Sizing | Identifies over-provisioned RDS instances based on CPU/Memory/Storage and recommends downsizing. |
+| `idle_resources_report.sh` | Idle Resources | Detects unused resources: unattached EBS, unassociated EIPs, idle Lambda/RDS/ELB. |
+| `ebs_optimization_report.sh` | EBS Optimization | Recommends gp2→gp3 migration and IOPS reduction for io1/io2 volumes. |
+| `ri_sp_advisor_report.sh` | RI/SP Advisor | Recommends Reserved Instance or Savings Plans purchases for consistently running instances. |
+| `data_transfer_optimization_report.sh` | Data Transfer | Identifies high NAT Gateway costs and cross-region transfer patterns. |
+| `s3_storage_optimization_report.sh` | S3 Storage | Recommends lifecycle policies, Intelligent-Tiering, and Glacier transitions. |
+| `efs_storage_optimization_report.sh` | EFS Storage | Recommends Lifecycle Management for EFS Standard-to-IA transitions. |
+| `optimization_summary_report.sh` | Summary | Aggregates all findings with total potential savings and priority classification. |
+
+### Enabling Optimization Reports
+
+Set the corresponding keys in `config.ini` to `1`:
+
+```ini
+; Price Optimization Reports
+opt_ec2_rightsizing=1
+opt_rds_rightsizing=1
+opt_idle_resources=1
+opt_ebs_optimization=1
+opt_ri_sp_advisor=1
+opt_data_transfer=1
+opt_s3_storage=1
+opt_efs_storage=1
+opt_summary=1
+```
+
+### Configurable Thresholds
+
+Optimization scripts support configurable thresholds via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UTIL_THRESHOLD` | 30 | CPU/Memory % below which a resource is considered underutilized |
+| `IDLE_THRESHOLD` | 5 | % below which a resource is considered idle |
+| `DATA_TRANSFER_ALERT_THRESHOLD` | 100 | USD/month above which data transfer triggers a recommendation |
+
+Example with custom thresholds:
+
+```bash
+UTIL_THRESHOLD=20 DATA_TRANSFER_ALERT_THRESHOLD=50 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+```
+
+### Optimization Excel Output
+
+When at least one `opt_*` report is enabled, the tool generates a consolidated Excel file with multiple sheets:
+
+```
+AWS_Optimization_Report_my-company-prod_123456789012.xlsx
+├── Summary           — Aggregated findings and total potential savings
+├── EC2 Right-Sizing  — EC2 downsizing recommendations
+├── RDS Right-Sizing  — RDS downsizing recommendations
+├── Idle Resources    — Unused resources costing money
+├── EBS Optimization  — Volume type migration and IOPS reduction
+├── RI-SP Advisor     — Reserved Instance / Savings Plans recommendations
+├── Data Transfer     — Network cost optimization
+├── S3 Storage        — Storage class transition recommendations
+└── EFS Storage       — EFS lifecycle management recommendations
+```
+
+Rows with estimated savings > $100/month are highlighted in green for quick identification.
+
+### Pricing Data
+
+Optimization scripts use the **AWS Pricing API** for accurate cost calculations. If the API is unavailable, they fall back to `lib/pricing_fallback.json` which contains reference pricing for common instance types in ap-southeast-1 and ap-southeast-3.
+
+### KeepAlive Tag
+
+Resources tagged with `KeepAlive=true` are excluded from idle resource recommendations. Use this tag to protect resources that appear idle but are intentionally kept running.
+
+---
+
 ## Configuration
 
 The `main_report_runner.sh` script uses the `config.ini` file to determine which reports to run. Set a report's value to `1` to enable it, or `0` to disable it.
@@ -66,103 +146,54 @@ Example `config.ini`:
 ; Report Configuration
 ; =============================================================================
 ; Set the value to 1 to enable a report, or 0 to disable it.
-;
-; Each report corresponds to an AWS service:
-;   acm           = AWS ACM - Certificate Manager (SSL/TLS Certificates)
-;   asg           = Auto Scaling Group (EC2 Auto Scaling)
-;   backup        = AWS Backup (Centralized Backup Service)
-;   billing       = AWS Billing & Cost Management (Cost Explorer)
-;   cloudfront    = Amazon CloudFront (Content Delivery Network / CDN)
-;   cloudwatch    = Amazon CloudWatch (Alarms & Log Groups Monitoring)
-;   data_transfer = AWS Data Transfer (Network Transfer Cost & Usage per Instance)
-;   directconnect = AWS Direct Connect (Dedicated Network Connection)
-;   dynamodb      = Amazon DynamoDB (NoSQL Database)
-;   ebs_detailed  = Amazon EBS - Elastic Block Store (Block Storage Volumes)
-;   ebs_utilization = Amazon EBS - Elastic Block Store (Utilization Metrics)
-;   ec2           = Amazon EC2 - Elastic Compute Cloud (Virtual Servers)
-;   ecr           = Amazon ECR - Elastic Container Registry (Docker Image Registry)
-;   ecs           = Amazon ECS - Elastic Container Service (Container Orchestration)
-;   efs           = Amazon EFS - Elastic File System (Managed NFS Storage)
-;   eks           = Amazon EKS - Elastic Kubernetes Service (Managed Kubernetes)
-;   elasticache   = Amazon ElastiCache (In-Memory Cache: Redis/Memcached)
-;   elb           = Elastic Load Balancing (ALB/NLB/GWLB)
-;   glue          = AWS Glue (ETL Jobs, Crawlers, Data Catalog)
-;   iam           = AWS IAM - Identity and Access Management (Users & Roles)
-;   kms           = AWS KMS - Key Management Service (Encryption Key Management)
-;   lambda        = AWS Lambda (Serverless Compute / Functions)
-;   rds           = Amazon RDS - Relational Database Service (Managed SQL Database)
-;   ri            = EC2 Reserved Instances (Discounted Capacity Reservations)
-;   route53       = Amazon Route 53 (DNS & Domain Registration)
-;   s3            = Amazon S3 - Simple Storage Service (Object Storage)
-;   secrets_manager = AWS Secrets Manager (Secrets & Credentials Management)
-;   ses           = Amazon SES - Simple Email Service (Email Sending & Identities)
-;   sns           = Amazon SNS - Simple Notification Service (Pub/Sub Messaging)
-;   sp            = AWS Savings Plans (Flexible Pricing Discount Model)
-;   vpc           = Amazon VPC - Virtual Private Cloud (Network Isolation)
-;   vpn           = AWS VPN - Virtual Private Network (Site-to-Site VPN)
-;   waf           = AWS WAF - Web Application Firewall (HTTP Traffic Filtering)
-;   workspaces    = Amazon WorkSpaces (Managed Virtual Desktops / DaaS)
-;   sqs           = Amazon SQS - Simple Queue Service (Message Queuing)
-;   apigateway    = Amazon API Gateway (REST/HTTP/WebSocket API Management)
-;   stepfunctions = AWS Step Functions (Serverless Workflow Orchestration)
-;   natgateway    = NAT Gateway (VPC Network Address Translation)
-;   transitgateway = AWS Transit Gateway (Multi-VPC/Account Network Hub)
-;   kinesis       = Amazon Kinesis (Real-Time Data Streaming)
-;   redshift      = Amazon Redshift (Data Warehouse)
-;   opensearch    = Amazon OpenSearch Service (Search & Analytics)
-;   codepipeline  = AWS CodePipeline (CI/CD Pipeline Management)
-;   ssm_params    = AWS SSM Parameter Store (Configuration Management)
-;   eventbridge   = Amazon EventBridge (Serverless Event Bus)
-;   config        = AWS Config (Resource Compliance & Configuration)
-; =============================================================================
+;=============================================================================
 
 acm=1
+apigateway=1
 asg=1
 backup=1
-billing=0
+billing=1
 cloudfront=1
 cloudwatch=1
+codepipeline=1
+config=1
 data_transfer=1
 directconnect=1
 dynamodb=1
 ebs_detailed=1
-ebs_utilization=0
+; ebs_utilization=1
 ec2=1
 ecr=1
 ecs=1
-efs=0
-eks=0
-elasticache=0
-elb=0
+efs=1
+eks=1
+elasticache=1
+elb=1
+eventbridge=1
 glue=1
 iam=1
+kinesis=1
 kms=1
 lambda=1
+natgateway=1
+opensearch=1
 rds=1
-ri=0
+redshift=1
+ri=1
 route53=1
 s3=1
 secrets_manager=1
 ses=1
 sns=1
-sp=0
-vpc=0
+sp=1
+sqs=1
+ssm_params=1
+stepfunctions=1
+transitgateway=1
+vpc=1
 vpn=1
-waf=0
-workspaces=0
-sqs=0
-apigateway=0
-stepfunctions=0
-natgateway=0
-transitgateway=0
-kinesis=0
-redshift=0
-opensearch=0
-codepipeline=0
-ssm_params=0
-eventbridge=0
-config=0
-
+waf=1
+workspaces=1
 ; =============================================================================
 ; Parallel Configuration
 ; =============================================================================
@@ -252,63 +283,34 @@ This makes it easy to identify which account the report belongs to when managing
 
 ```
 .
-├── config.ini                  # Report toggle configuration
-├── main_report_runner.sh       # Main orchestrator script (modular)
-├── combine_csv.py              # Combines CSVs into Excel with account info
-├── excel_styles.py             # Excel formatting rules & conditional highlighting
-├── dependencies.sh             # Installs required dependencies
-├── lib/                        # Modular libraries
-│   ├── logger.sh              # Logging functions
-│   ├── task_runner.sh         # Task execution engine (sequential/parallel)
-│   └── report_registry.sh    # Report definitions & task builder
-├── script/                     # All report scripts
+├── config.ini                          # Report toggle configuration
+├── main_report_runner.sh               # Main orchestrator script (modular)
+├── combine_csv.py                      # Combines CSVs into Excel with account info
+├── combine_optimization_excel.py       # Combines optimization CSVs into multi-sheet Excel
+├── excel_styles.py                     # Excel formatting rules & conditional highlighting
+├── dependencies.sh                     # Installs required dependencies
+├── lib/                                # Modular libraries
+│   ├── logger.sh                      # Logging functions
+│   ├── task_runner.sh                 # Task execution engine (sequential/parallel)
+│   ├── report_registry.sh            # Report definitions & task builder
+│   ├── pricing_helper.sh             # Pricing data retrieval & caching (optimization)
+│   └── pricing_fallback.json          # Reference pricing data for offline use
+├── script/                             # Inventory report scripts
 │   ├── acm_report.sh
 │   ├── apigateway_report.sh
-│   ├── asg_report.sh
-│   ├── aws_billing_report.sh
-│   ├── aws_ec2_report.sh
-│   ├── aws_rds_report.sh
-│   ├── aws_ri_report.sh
-│   ├── aws_sp_report.sh
-│   ├── aws_workspaces_report.sh
-│   ├── backup_report.sh
-│   ├── cloudfront_report.sh
-│   ├── cloudwatch_report.sh
-│   ├── codepipeline_report.sh
-│   ├── config_report.sh
-│   ├── data_transfer_report.sh
-│   ├── directconnect_report.sh
-│   ├── dynamodb_report.sh
-│   ├── ebs_report.sh
-│   ├── ebs_utilization_report.sh
-│   ├── ecr_report.sh
-│   ├── ecs_report.sh
-│   ├── efs_report.sh
-│   ├── eks_report.sh
-│   ├── elasticache_report.sh
-│   ├── elb_report.sh
-│   ├── eventbridge_report.sh
-│   ├── glue_report.sh
-│   ├── iam_report.sh
-│   ├── kinesis_report.sh
-│   ├── kms_report.sh
-│   ├── lambda_report.sh
-│   ├── natgateway_report.sh
-│   ├── opensearch_report.sh
-│   ├── redshift_report.sh
-│   ├── route53_report.sh
-│   ├── s3_report.sh
-│   ├── secrets_manager_report.sh
-│   ├── ses_report.sh
-│   ├── sns_report.sh
-│   ├── sqs_report.sh
-│   ├── ssm_params_report.sh
-│   ├── stepfunctions_report.sh
-│   ├── transitgateway_report.sh
-│   ├── vpc_report.sh
-│   ├── vpn_report.sh
+│   ├── ...                            # (45+ inventory report scripts)
 │   └── waf_report.sh
-└── web/                        # Web UI (optional)
+├── script/optimization/                # Price optimization scripts
+│   ├── ec2_rightsizing_report.sh
+│   ├── rds_rightsizing_report.sh
+│   ├── idle_resources_report.sh
+│   ├── ebs_optimization_report.sh
+│   ├── ri_sp_advisor_report.sh
+│   ├── data_transfer_optimization_report.sh
+│   ├── s3_storage_optimization_report.sh
+│   ├── efs_storage_optimization_report.sh
+│   └── optimization_summary_report.sh
+└── web/                                # Web UI (optional)
 ```
 
 ## Notes
@@ -321,5 +323,7 @@ This makes it easy to identify which account the report belongs to when managing
 - **Global Services**: IAM, CloudFront, Billing, Savings Plans, and Route 53 are global APIs — they don't loop through regions.
 - **Rate Limiting**: For accounts with many resources, consider keeping `max_parallel=2` to avoid AWS API throttling.
 - **Excel Styling**: Conditional formatting rules are defined in `excel_styles.py`. EC2 instances not in "running" state are highlighted with background color `#DEBABA`.
+- **Optimization Pricing**: The pricing helper caches API responses per execution run to minimize Pricing API calls. If the API is unreachable, fallback pricing data is used automatically.
+- **Cost Explorer Access**: The RI/SP Advisor and Data Transfer optimization scripts require Cost Explorer API access. If access is denied, they log a warning and continue with other checks.
 
 Copyright 2026

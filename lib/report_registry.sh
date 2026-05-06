@@ -61,6 +61,16 @@ REPORT_DEFINITIONS=(
     "ssm_params|./script/ssm_params_report.sh|-r"
     "eventbridge|./script/eventbridge_report.sh|-r"
     "config|./script/config_report.sh|-r"
+    # --- Price Optimization Reports ---
+    "opt_ec2_rightsizing|./script/optimization/ec2_rightsizing_report.sh|-r -b -e"
+    "opt_rds_rightsizing|./script/optimization/rds_rightsizing_report.sh|-r -b -e"
+    "opt_idle_resources|./script/optimization/idle_resources_report.sh|-r -b -e"
+    "opt_ebs_optimization|./script/optimization/ebs_optimization_report.sh|-r -b -e"
+    "opt_ri_sp_advisor|./script/optimization/ri_sp_advisor_report.sh|-r -b -e"
+    "opt_data_transfer|./script/optimization/data_transfer_optimization_report.sh|-r -b -e"
+    "opt_s3_storage|./script/optimization/s3_storage_optimization_report.sh|-r -b -e"
+    "opt_efs_storage|./script/optimization/efs_storage_optimization_report.sh|-r -b -e"
+    "opt_summary|./script/optimization/optimization_summary_report.sh|-r -b -e"
 )
 
 # Build the TASKS array based on config values and CLI arguments.
