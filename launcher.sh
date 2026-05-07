@@ -33,6 +33,10 @@ if ! command -v whiptail &>/dev/null; then
     exit 1
 fi
 
+# --- Ensure scripts are executable ---
+chmod +x main_report_runner.sh 2>/dev/null || true
+chmod +x multi_account_runner.sh 2>/dev/null || true
+
 # --- Helper Functions ---
 
 show_welcome() {
@@ -94,11 +98,20 @@ Use SPACE to toggle, ENTER to confirm." 30 70 20 \
         "sagemaker" "SageMaker" OFF \
         "bedrock" "Bedrock AI" OFF \
         "lightsail" "Lightsail" OFF \
-        "tagging_compliance" "Tagging Compliance" OFF \
-        "resource_lifecycle" "Resource Lifecycle" OFF \
-        "delta_report" "Delta Report (vs baseline)" OFF \
-        "scorecard" "Executive Scorecard" OFF \
         3>&1 1>&2 2>&3) || INVENTORY_SELECTION=""
+}
+
+select_compliance_reports() {
+    COMPLIANCE_SELECTION=$(whiptail --title "$TITLE - Compliance & Governance" --checklist \
+"Select compliance/governance reports:
+
+These reports analyze data from other reports (no direct AWS API calls).
+Use SPACE to toggle, ENTER to confirm." 16 70 6 \
+        "tagging_compliance" "Tagging Compliance (check mandatory tags)" OFF \
+        "resource_lifecycle" "Resource Lifecycle (stale AMIs, deprecated runtimes)" OFF \
+        "delta_report" "Delta Report (compare vs previous baseline)" OFF \
+        "scorecard" "Executive Scorecard (Health Score, runs LAST)" OFF \
+        3>&1 1>&2 2>&3) || COMPLIANCE_SELECTION=""
 }
 
 select_optimization_reports() {
@@ -183,6 +196,23 @@ select_parallel() {
         3>&1 1>&2 2>&3) || PARALLEL="1"
 }
 
+select_excel_mode() {
+    # Only show this for single-mode runs (not mode=all)
+    if [[ "$MODE" == "all" ]]; then
+        EXCEL_MODE="auto"  # mode=all always uses mode-sheets (3 sheets: Inventory/Opt/Sec)
+        return
+    fi
+
+    EXCEL_MODE=$(whiptail --title "$TITLE - Excel Output Format" --radiolist \
+"How should the Excel report be structured?
+
+Single: All reports combined in 1 sheet (scrollable, good for overview)
+Multi:  Each AWS service gets its own sheet (easier to navigate)" 14 70 3 \
+        "single" "Single sheet (all reports combined)" OFF \
+        "multi" "Multi-sheet (1 sheet per service)" ON \
+        3>&1 1>&2 2>&3) || EXCEL_MODE="single"
+}
+
 select_report_method() {
     REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
 "How do you want to select reports?
@@ -202,6 +232,11 @@ confirm_and_run() {
         CMD="./main_report_runner.sh -b $START_DATE -e $END_DATE -m $MODE"
     else
         CMD="./main_report_runner.sh -b $START_DATE -e $END_DATE -r $REGIONS -m $MODE"
+    fi
+
+    # Add excel-mode flag (only for single-mode runs, mode=all uses mode-sheets automatically)
+    if [[ "$MODE" != "all" && -n "${EXCEL_MODE:-}" && "$EXCEL_MODE" != "auto" ]]; then
+        CMD="$CMD --excel-mode $EXCEL_MODE"
     fi
 
     # Add auto-discover flag if selected
@@ -224,6 +259,9 @@ confirm_and_run() {
         fi
         if [[ -n "${SEC_SELECTION:-}" ]]; then
             report_summary="${report_summary}Security: $(echo $SEC_SELECTION | tr -d '"' | wc -w) reports\n"
+        fi
+        if [[ -n "${COMPLIANCE_SELECTION:-}" ]]; then
+            report_summary="${report_summary}Compliance: $(echo $COMPLIANCE_SELECTION | tr -d '"' | wc -w) reports\n"
         fi
     fi
 
@@ -295,6 +333,13 @@ write_temp_config() {
             set_config_key "$key" "1"
         done
     fi
+
+    # Enable selected compliance reports
+    if [[ -n "${COMPLIANCE_SELECTION:-}" ]]; then
+        for key in $(echo "$COMPLIANCE_SELECTION" | tr -d '"'); do
+            set_config_key "$key" "1"
+        done
+    fi
 }
 
 # =============================================================================
@@ -323,6 +368,7 @@ show_welcome
 select_mode
 input_date_range
 select_parallel
+select_excel_mode
 select_report_method
 
 # Region selection: auto-discover skips manual region input
@@ -343,7 +389,31 @@ fi
 
 # Show report selection based on mode and method
 if [[ "$REPORT_METHOD" == "auto" ]]; then
-    : # Already set AUTO_DISCOVER_FLAG above
+    # Auto-discover handles inventory automatically.
+    # But for optimize/security modes, we still need user to pick which reports to run
+    # (since auto-discover only affects inventory keys, not opt_*/sec_*)
+    case "$MODE" in
+        optimize)
+            select_optimization_reports
+            ;;
+        security)
+            select_security_reports
+            ;;
+        optimize,security)
+            select_optimization_reports
+            select_security_reports
+            ;;
+        all)
+            # Inventory is auto-discovered; ask for opt, sec, and compliance
+            select_optimization_reports
+            select_security_reports
+            select_compliance_reports
+            ;;
+        inventory)
+            # Inventory auto-discovered; still ask for compliance (they're not in billing)
+            select_compliance_reports
+            ;;
+    esac
 elif [[ "$REPORT_METHOD" == "manual" ]]; then
     AUTO_DISCOVER_FLAG=""
     case "$MODE" in
@@ -351,9 +421,11 @@ elif [[ "$REPORT_METHOD" == "manual" ]]; then
             select_inventory_reports
             select_optimization_reports
             select_security_reports
+            select_compliance_reports
             ;;
         inventory)
             select_inventory_reports
+            select_compliance_reports
             ;;
         optimize)
             select_optimization_reports

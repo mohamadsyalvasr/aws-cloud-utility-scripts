@@ -153,7 +153,40 @@ build_task_list() {
         if [[ "$config_value" == "1" ]]; then
             local run_args=""
             if [[ -n "$needed_args" ]]; then
-                run_args=$(get_report_args "$script_path" "$needed_args")
+                # Check for per-service region override from .service_regions file
+                local service_regions_file="${OUTPUT_DIR:-}/.service_regions"
+                if [[ -f "$service_regions_file" ]] && echo "$needed_args" | grep -q "\-r"; then
+                    # Look up this config key's specific regions
+                    local key_regions
+                    key_regions=$(grep "^${config_key}=" "$service_regions_file" 2>/dev/null | cut -d'=' -f2)
+                    if [[ -n "$key_regions" ]]; then
+                        # Override -r in PASS_THROUGH_ARGS with per-service regions
+                        local TEMP_PASS_THROUGH=()
+                        local skip_next=false
+                        for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
+                            if [[ "$skip_next" == "true" ]]; then
+                                skip_next=false
+                                continue
+                            fi
+                            if [[ "${PASS_THROUGH_ARGS[$i]}" == "-r" ]]; then
+                                skip_next=true  # Skip the -r value
+                                continue
+                            fi
+                            TEMP_PASS_THROUGH+=("${PASS_THROUGH_ARGS[$i]}")
+                        done
+                        # Add per-service regions
+                        TEMP_PASS_THROUGH+=("-r" "$key_regions")
+                        # Build args from temp array
+                        local OLD_PASS_THROUGH=("${PASS_THROUGH_ARGS[@]}")
+                        PASS_THROUGH_ARGS=("${TEMP_PASS_THROUGH[@]}")
+                        run_args=$(get_report_args "$script_path" "$needed_args")
+                        PASS_THROUGH_ARGS=("${OLD_PASS_THROUGH[@]}")
+                    else
+                        run_args=$(get_report_args "$script_path" "$needed_args")
+                    fi
+                else
+                    run_args=$(get_report_args "$script_path" "$needed_args")
+                fi
             fi
             TASKS+=("${script_path}|${run_args}")
         fi

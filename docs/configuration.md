@@ -91,6 +91,26 @@ Use comma-separated values to combine:
 | `security` | ❌ Skipped | ❌ Skipped | ✅ Generated |
 | `all` (default) | ✅ Generated | ✅ Generated | ✅ Generated |
 
+### Excel Output Modes (`--excel-mode`)
+
+Controls how inventory reports are structured in the Excel file:
+
+| Flag | Behavior |
+|------|----------|
+| `--excel-mode single` | All inventory reports in 1 sheet (default, scrollable) |
+| `--excel-mode multi` | Each AWS service gets its own sheet (easier navigation) |
+| *(mode=all)* | Automatic: 3 sheets grouped by type (Inventory/Optimization/Security) |
+
+**Note:** `--excel-mode` only affects inventory reports. Optimization and security always use multi-sheet (1 sheet per category).
+
+```bash
+# Inventory: 1 sheet per AWS service
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m inventory --excel-mode multi
+
+# Mode all: automatic 3 sheets (Inventory, Optimization, Security)
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+```
+
 ## Environment Variables
 
 ### Optimization Thresholds
