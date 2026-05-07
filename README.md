@@ -58,21 +58,34 @@ cd aws-cloud-utility-scripts
 
 ### Auto-Discovery Mode
 
-When using `--auto-discover`, the tool queries Cost Explorer to detect which services are active in your account and only runs reports for those services. If a billing service has no matching report script, it will be listed as a warning:
+When using `--auto-discover`, the tool queries Cost Explorer to automatically detect:
+1. **Which services** are active (have non-zero cost) → enables only those reports
+2. **Which regions** have resources (have non-zero cost) → scans only those regions
 
+```bash
+# Full auto: services + regions detected from billing
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 --auto-discover
+
+# Auto services, but override regions manually
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -r us-east-1,eu-west-1
 ```
-[10:30:05] ✅ Auto-discovery complete: 12 report(s) enabled
-[10:30:05]    Enabled: acm cloudwatch ec2 ebs_detailed elb iam lambda rds s3 sns sqs vpc
-[10:30:05]
-[10:30:05]    ⚠️  Services found in billing but NO report script available:
-[10:30:05]    ────────────────────────────────────────────────────────────
-[10:30:05]      • AWS Support (Business)
-[10:30:05]      • Tax
-[10:30:05]      • AWS Marketplace
-[10:30:05]    ────────────────────────────────────────────────────────────
-[10:30:05]    These services are being billed but won't be inventoried.
-[10:30:05]    Consider adding report scripts for them (see docs/adding-reports.md)
+
+Example output:
 ```
+[10:30:01] 🔍 Auto-discovering active services from billing data...
+[10:30:03] ✅ Auto-discovery complete: 12 report(s) enabled
+[10:30:03]    Enabled: acm cloudwatch ec2 ebs_detailed elb iam lambda rds s3 sns sqs vpc
+[10:30:03]
+[10:30:03]    ⚠️  Services found in billing but NO report script available:
+[10:30:03]      • AWS Support (Business)
+[10:30:03]      • Tax
+[10:30:03]
+[10:30:03] 🌍 Auto-discovering active regions from billing data...
+[10:30:04] ✅ Region discovery complete: 3 region(s) found
+[10:30:04]    Regions: ap-southeast-1,ap-southeast-3,us-east-1
+```
+
+**Note:** If you pass `-r` explicitly, region auto-discovery is skipped and your specified regions are used instead.
 
 This helps you identify gaps — services you're paying for but don't have visibility into.
 
