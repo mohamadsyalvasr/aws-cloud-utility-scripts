@@ -28,13 +28,29 @@ opt_data_transfer=0      # Data transfer cost optimization
 opt_s3_storage=0         # S3 storage class optimization
 opt_efs_storage=0        # EFS storage optimization
 opt_trusted_advisor=0    # Trusted Advisor recommendations
+opt_cost_trend=0         # Cost trend analysis (period comparison)
 opt_summary=0            # Aggregated summary
 
 ; =============================================================================
-; Security Reports (sec_ prefix) — coming soon
+; Security Audit Reports (sec_ prefix)
 ; =============================================================================
-# sec_iam_audit=0
-# sec_sg_check=0
+sec_trusted_advisor=0    # Trusted Advisor security (primary source)
+sec_iam_audit=0          # IAM security audit (MFA, keys, policies)
+sec_sg_audit=0           # Security Group audit (open ports)
+sec_s3_audit=0           # S3 bucket security (public access, encryption)
+sec_encryption_audit=0   # Encryption audit (EBS/RDS/KMS)
+sec_network_audit=0      # Network security (VPC flow logs, subnets)
+sec_logging_audit=0      # Logging & monitoring (CloudTrail, GuardDuty)
+sec_securityhub=0        # Security Hub findings
+sec_summary=0            # Security summary report
+
+; =============================================================================
+; Additional Inventory Reports
+; =============================================================================
+tagging_compliance=0     # Tagging compliance check (MANDATORY_TAGS env var)
+resource_lifecycle=0     # Resource age/lifecycle check (RESOURCE_AGE_THRESHOLD env var)
+delta_report=0           # Historical comparison vs baseline (export/baseline/)
+scorecard=0              # Executive summary scorecard (runs LAST, reads other CSVs)
 
 ; =============================================================================
 ; Parallel Configuration
@@ -84,6 +100,25 @@ Use comma-separated values to combine:
 | `UTIL_THRESHOLD` | 30 | EC2/RDS right-sizing, EFS optimization |
 | `IDLE_THRESHOLD` | 5 | Idle resource detection |
 | `DATA_TRANSFER_ALERT_THRESHOLD` | 100 | Data transfer optimization |
+| `COST_CHANGE_THRESHOLD` | 20 | Cost trend analysis (% increase for "High" alert) |
+
+### Feature Configuration
+
+| Variable | Default | Used By |
+|----------|---------|---------|
+| `MANDATORY_TAGS` | `Environment,Owner,CostCenter,Project` | Tagging compliance report |
+| `RESOURCE_AGE_THRESHOLD` | 365 | Resource lifecycle report (days) |
+
+### Notification Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NOTIFY_SLACK` | No | Set to `1` to enable Slack notifications |
+| `SLACK_WEBHOOK_URL` | When NOTIFY_SLACK=1 | Slack incoming webhook URL |
+| `NOTIFY_TEAMS` | No | Set to `1` to enable Teams notifications |
+| `TEAMS_WEBHOOK_URL` | When NOTIFY_TEAMS=1 | Teams incoming webhook URL |
+| `NOTIFY_SNS` | No | Set to `1` to enable email via SNS |
+| `SNS_TOPIC_ARN` | When NOTIFY_SNS=1 | SNS topic ARN for email delivery |
 
 ### System Variables
 

@@ -7,9 +7,10 @@ This guide explains how to add your own report scripts to the framework.
 ### 1. Create the Script
 
 Place your script in the appropriate directory:
-- **Inventory reports:** `script/your_report.sh`
+- **Inventory reports:** `script/inventory/your_report.sh`
 - **Optimization reports:** `script/optimization/your_optimization_report.sh`
 - **Security reports:** `script/security/your_security_report.sh`
+- **Compliance reports:** `script/compliance/your_compliance_report.sh`
 
 ### 2. Follow the Template
 
@@ -99,7 +100,7 @@ Add one line to the `REPORT_DEFINITIONS` array:
 ```bash
 REPORT_DEFINITIONS=(
     # ... existing entries ...
-    "your_key|./script/your_report.sh|-r -b -e"
+    "your_key|./script/inventory/your_report.sh|-r -b -e"
     # ...
 )
 ```
@@ -107,7 +108,7 @@ REPORT_DEFINITIONS=(
 **Format:** `"config_key|script_path|required_args"`
 
 - `config_key`: The key name in config.ini
-- `script_path`: Path to your script
+- `script_path`: Path to your script (use the appropriate subdirectory)
 - `required_args`: CLI flags your script needs (space-separated)
   - `-r` = regions
   - `-b -e` = date range
@@ -125,9 +126,10 @@ your_key=0
 
 | Type | Config Key Prefix | Script Location | Example |
 |------|-------------------|-----------------|---------|
-| Inventory | (none) | `script/` | `dynamodb=1` |
+| Inventory | (none) | `script/inventory/` | `dynamodb=1` |
 | Optimization | `opt_` | `script/optimization/` | `opt_ec2_rightsizing=1` |
 | Security | `sec_` | `script/security/` | `sec_iam_audit=1` |
+| Compliance | (none) | `script/compliance/` | `tagging_compliance=1` |
 
 The prefix determines which `--mode` includes the script:
 - No prefix → `--mode inventory`
@@ -152,7 +154,7 @@ export OUTPUT_DIR="./test_output"
 export START_DATE="2025-08-01"
 export END_DATE="2025-08-31"
 mkdir -p "$OUTPUT_DIR"
-bash script/your_report.sh -r ap-southeast-1
+bash script/inventory/your_report.sh -r ap-southeast-1
 
 # Check output
 cat test_output/your_report.csv

@@ -4,6 +4,9 @@ import os
 import sys
 import subprocess
 
+# Ensure imports work regardless of working directory
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from excel_styles import get_formats, get_highlight_function
 
 

@@ -9,6 +9,7 @@ set -euo pipefail
 source ./lib/logger.sh
 source ./lib/task_runner.sh
 source ./lib/report_registry.sh
+source ./lib/notifier.sh
 
 # --- Start ---
 log_start "🚀 Starting combined AWS report generation..."
@@ -127,7 +128,7 @@ fi
 # --- Combine CSV to Excel (only if inventory mode is active) ---
 if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
     log_start "✨ Combining CSV reports into a single Excel file..."
-    if python3 ./combine_csv.py "${OUTPUT_DIR}"; then
+    if python3 ./lib/python/combine_csv.py "${OUTPUT_DIR}"; then
         EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
         if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
             EXCEL_BASENAME=$(basename "$EXCEL_FILE")
@@ -156,7 +157,7 @@ if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
 
     if [[ "$OPT_ENABLED" == "1" ]]; then
         log_start "✨ Combining optimization reports into a single Excel file..."
-        if python3 ./combine_optimization_excel.py "${OUTPUT_DIR}"; then
+        if python3 ./lib/python/combine_optimization_excel.py "${OUTPUT_DIR}"; then
             OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
             if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
                 OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
@@ -172,11 +173,44 @@ if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
     fi
 fi
 
+# --- Combine Security Reports to Excel (only if security mode is active) ---
+if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"security"* ]]; then
+    SEC_ENABLED=0
+    for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
+        raw_value="${!sec_key:-0}"
+        clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+        if [[ "$clean_value" == "1" ]]; then
+            SEC_ENABLED=1
+            break
+        fi
+    done
+
+    if [[ "$SEC_ENABLED" == "1" ]]; then
+        log_start "✨ Combining security reports into a single Excel file..."
+        if python3 ./lib/python/combine_security_excel.py "${OUTPUT_DIR}"; then
+            SEC_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Security_Report_*.xlsx" 2>/dev/null | head -1)
+            if [[ -n "$SEC_EXCEL_FILE" && -f "$SEC_EXCEL_FILE" ]]; then
+                SEC_EXCEL_BASENAME=$(basename "$SEC_EXCEL_FILE")
+                log_success "Security reports combined into Excel: ${SEC_EXCEL_FILE}"
+                cp "$SEC_EXCEL_FILE" "./${SEC_EXCEL_BASENAME}"
+                log_success "${SEC_EXCEL_BASENAME} copied to current directory."
+            else
+                log_error "Security Excel file not found after combining."
+            fi
+        else
+            log_error "FAILED to combine security reports into Excel."
+        fi
+    fi
+fi
+
 # --- Zip Output ---
 log_start "📦 Zipping output folder..."
 ZIP_FILENAME="aws_reports_${YEAR}-${MONTH}-${DAY}.zip"
 zip -r "${ZIP_FILENAME}" "${OUTPUT_DIR}"
 log_success "All reports zipped to: ${ZIP_FILENAME}"
+
+# --- Send Notifications ---
+send_notifications || true
 
 # --- Final Info ---
 CURRENT_DIR=$(pwd)

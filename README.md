@@ -8,7 +8,7 @@ A comprehensive toolkit for AWS infrastructure **inventory reporting**, **cost o
 |------|-------------|------|
 | **Inventory** | Generate detailed CSV/Excel reports for 50+ AWS services | `--mode inventory` |
 | **Optimize** | Analyze resource utilization and recommend cost savings | `--mode optimize` |
-| **Security** | Audit security configurations and compliance *(coming soon)* | `--mode security` |
+| **Security** | Audit security configurations and compliance | `--mode security` |
 
 All modes can be combined: `--mode optimize,security`
 
@@ -60,9 +60,12 @@ opt_idle_resources=1
 opt_s3_storage=1
 opt_summary=1
 
-# Security reports (sec_ prefix) — coming soon
-# sec_iam_audit=1
-# sec_sg_check=1
+# Security reports (sec_ prefix)
+sec_trusted_advisor=1
+sec_iam_audit=1
+sec_sg_audit=1
+sec_encryption_audit=1
+sec_summary=1
 
 # Parallel execution
 parallel=1
@@ -75,10 +78,23 @@ max_parallel=2
 export/aws-cloud-report-2025-08-31/
 ├── *.csv                                          # Individual report CSVs
 ├── Combined_AWS_Reports_<Account>.xlsx            # Inventory Excel (all reports in one sheet)
-└── AWS_Optimization_Report_<Account>.xlsx         # Optimization Excel (multi-sheet)
+├── AWS_Optimization_Report_<Account>.xlsx         # Optimization Excel (multi-sheet)
+└── AWS_Security_Report_<Account>.xlsx             # Security Excel (multi-sheet, severity color-coded)
 
 aws_reports_2025-08-31.zip                         # Everything zipped
 ```
+
+## Additional Features
+
+| Feature | Description | Script/Config |
+|---------|-------------|---------------|
+| **Tagging Compliance** | Check resources for mandatory tags (configurable via `MANDATORY_TAGS` env var) | `tagging_compliance=1` |
+| **Resource Lifecycle** | Identify stale AMIs, deprecated runtimes, outdated EKS versions | `resource_lifecycle=1` |
+| **Cost Trend Analysis** | Compare costs between periods, highlight services with >20% increase | `opt_cost_trend=1` |
+| **Multi-Account** | Run reports across multiple AWS accounts via cross-account roles | `./multi_account_runner.sh` |
+| **Compliance Scorecard** | Executive summary with Health Score (0-100) aggregating all reports | `scorecard=1` |
+| **Delta Report** | Compare current run vs baseline — detect NEW/REMOVED/CHANGED resources | `delta_report=1` |
+| **Notifications** | Send summary to Slack, Teams, or Email (SNS) after reports complete | `NOTIFY_SLACK=1` env var |
 
 ## Documentation
 
@@ -88,6 +104,8 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 |----------|-------------|
 | [Inventory Reports](docs/inventory-reports.md) | Full list of 50+ inventory scripts with columns and details |
 | [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, pricing data, recommendations |
+| [Security Audit](docs/security-audit.md) | How security auditing works, Trusted Advisor integration, severity levels |
+| [Multi-Account Setup](docs/multi-account-setup.md) | Prerequisites for cross-account reporting (IAM roles, trust policies) |
 | [Configuration Guide](docs/configuration.md) | All config.ini options, environment variables, and modes |
 | [Adding New Reports](docs/adding-reports.md) | How to add your own report scripts to the framework |
 
@@ -96,18 +114,26 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 ```
 .
 ├── main_report_runner.sh               # Main orchestrator
+├── multi_account_runner.sh             # Multi-account wrapper (standalone)
+├── accounts.conf                       # Multi-account target list
 ├── config.ini                          # Report toggles
-├── combine_csv.py                      # Inventory → Excel
-├── combine_optimization_excel.py       # Optimization → multi-sheet Excel
-├── excel_styles.py                     # Excel formatting
 ├── lib/                                # Shared libraries
+│   ├── python/                        #   Python Excel combiners
+│   │   ├── combine_csv.py            #     Inventory → Excel
+│   │   ├── combine_optimization_excel.py  #  Optimization → multi-sheet Excel
+│   │   ├── combine_security_excel.py #     Security → multi-sheet Excel
+│   │   └── excel_styles.py           #     Shared Excel formatting
 │   ├── logger.sh                      #   Logging
 │   ├── task_runner.sh                 #   Sequential/parallel execution
 │   ├── report_registry.sh            #   Report definitions & mode filtering
 │   ├── pricing_helper.sh             #   AWS Pricing API + cache
-│   └── pricing_fallback.json          #   Offline pricing reference
-├── script/                             # Inventory reports (50+ scripts)
-├── script/optimization/                # Cost optimization reports
+│   ├── pricing_fallback.json          #   Offline pricing reference
+│   └── notifier.sh                    #   Slack/Teams/SNS notifications
+├── script/
+│   ├── inventory/                      # Inventory reports (50+ scripts)
+│   ├── optimization/                   # Cost optimization reports
+│   ├── security/                       # Security audit reports
+│   └── compliance/                     # Compliance & governance reports
 ├── docs/                               # Documentation
 └── web/                                # Web UI (optional)
 ```
