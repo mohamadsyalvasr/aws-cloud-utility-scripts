@@ -214,15 +214,29 @@ Multi:  Each AWS service gets its own sheet (easier to navigate)" 14 70 3 \
 }
 
 select_report_method() {
-    REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
+    # Auto-discover works for inventory and optimization modes
+    # For security-only mode, skip auto-discover option
+    if [[ "$MODE" == "security" ]]; then
+        REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
+"How do you want to select reports?
+
+Note: Auto-discover is not available for security-only mode.
+Security reports must be selected manually." 13 65 2 \
+            "manual" "Select from checklist" ON \
+            "config" "Use config.ini as-is" OFF \
+            3>&1 1>&2 2>&3) || REPORT_METHOD="config"
+    else
+        REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
 "How do you want to select reports?
 
 Auto-discover uses your billing data to detect which
-AWS services are active and enables only those reports." 14 65 3 \
-        "auto" "Auto-discover from billing (recommended)" ON \
-        "manual" "Manual selection from checklist" OFF \
-        "config" "Use config.ini as-is" OFF \
-        3>&1 1>&2 2>&3) || REPORT_METHOD="config"
+AWS services are active and enables matching reports.
+(Works for inventory + optimization. Security uses checklist.)" 15 70 3 \
+            "auto" "Auto-discover from billing (recommended)" ON \
+            "manual" "Manual selection from checklist" OFF \
+            "config" "Use config.ini as-is" OFF \
+            3>&1 1>&2 2>&3) || REPORT_METHOD="config"
+    fi
 }
 
 confirm_and_run() {
@@ -389,28 +403,27 @@ fi
 
 # Show report selection based on mode and method
 if [[ "$REPORT_METHOD" == "auto" ]]; then
-    # Auto-discover handles inventory automatically.
-    # But for optimize/security modes, we still need user to pick which reports to run
-    # (since auto-discover only affects inventory keys, not opt_*/sec_*)
+    # Auto-discover handles inventory AND optimization automatically from billing.
+    # Security still needs manual selection (not discoverable from billing).
     case "$MODE" in
         optimize)
-            select_optimization_reports
+            # Fully auto — optimization reports enabled based on billing services
             ;;
         security)
+            # Should not reach here (auto not available for security-only)
             select_security_reports
             ;;
         optimize,security)
-            select_optimization_reports
+            # Optimization auto-discovered, security needs checklist
             select_security_reports
             ;;
         all)
-            # Inventory is auto-discovered; ask for opt, sec, and compliance
-            select_optimization_reports
+            # Inventory + optimization auto-discovered; security + compliance need checklist
             select_security_reports
             select_compliance_reports
             ;;
         inventory)
-            # Inventory auto-discovered; still ask for compliance (they're not in billing)
+            # Inventory auto-discovered; compliance needs checklist
             select_compliance_reports
             ;;
     esac

@@ -9,14 +9,14 @@
 # Pattern mapping: Cost Explorer service name keywords → config keys to enable
 # Multiple config keys can be enabled by one pattern (space-separated)
 declare -A SERVICE_PATTERNS=(
-    ["Elastic Compute Cloud"]="ec2 ebs_detailed"
-    ["EC2 - Other"]="ec2 ebs_detailed ebs_utilization natgateway"
-    ["EC2-Other"]="ec2 ebs_detailed ebs_utilization natgateway"
-    ["Elastic Block Store"]="ebs_detailed ebs_utilization"
-    ["Relational Database"]="rds"
-    ["Simple Storage Service"]="s3"
-    ["Lambda"]="lambda"
-    ["Elastic Load Balancing"]="elb"
+    ["Elastic Compute Cloud"]="ec2 ebs_detailed opt_ec2_rightsizing opt_ri_sp_advisor opt_idle_resources"
+    ["EC2 - Other"]="ec2 ebs_detailed ebs_utilization natgateway opt_ebs_optimization opt_idle_resources"
+    ["EC2-Other"]="ec2 ebs_detailed ebs_utilization natgateway opt_ebs_optimization opt_idle_resources"
+    ["Elastic Block Store"]="ebs_detailed ebs_utilization opt_ebs_optimization"
+    ["Relational Database"]="rds opt_rds_rightsizing opt_idle_resources"
+    ["Simple Storage Service"]="s3 opt_s3_storage"
+    ["Lambda"]="lambda opt_idle_resources"
+    ["Elastic Load Balancing"]="elb opt_idle_resources"
     ["Elastic Container Service"]="ecs"
     ["Elastic Kubernetes"]="eks"
     ["CloudFront"]="cloudfront"
@@ -29,7 +29,7 @@ declare -A SERVICE_PATTERNS=(
     ["Key Management Service"]="kms"
     ["Virtual Private Cloud"]="vpc vpn"
     ["VPC"]="vpc vpn natgateway transitgateway"
-    ["Elastic File System"]="efs"
+    ["Elastic File System"]="efs opt_efs_storage"
     ["SageMaker"]="sagemaker"
     ["Bedrock"]="bedrock"
     ["Lightsail"]="lightsail"
@@ -61,12 +61,21 @@ declare -A SERVICE_PATTERNS=(
     ["Transfer"]="transfer_family"
     ["Container Registry"]="ecr"
     ["Simple Email Service"]="ses"
-    ["Data Transfer"]="data_transfer"
-    ["NAT Gateway"]="natgateway"
+    ["Data Transfer"]="data_transfer opt_data_transfer"
+    ["NAT Gateway"]="natgateway opt_data_transfer"
     ["Transit Gateway"]="transitgateway"
     ["IAM"]="iam"
     ["Savings Plans"]="sp"
     ["Reserved"]="ri"
+    ["WAF"]="waf"
+    ["AWS WAF"]="waf"
+    ["GuardDuty"]="sec_logging_audit"
+    ["FSx"]="SKIP"
+    ["Amplify"]="SKIP"
+    ["CloudShell"]="SKIP"
+    ["DataSync"]="SKIP"
+    ["QuickSight"]="SKIP"
+    ["Tax"]="SKIP"
 )
 
 auto_discover_services() {
@@ -138,6 +147,10 @@ auto_discover_services() {
                 matched=true
                 # Enable all config keys for this pattern
                 local keys="${SERVICE_PATTERNS[$pattern]}"
+                # Skip services marked as SKIP (known billing items without report scripts)
+                if [[ "$keys" == "SKIP" ]]; then
+                    continue
+                fi
                 for key in $keys; do
                     # Set the variable (export so it's available to build_task_list)
                     eval "export ${key}=1"

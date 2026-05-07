@@ -217,7 +217,27 @@ auto-detect which services are active based on your AWS billing data:
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -m inventory
 ```
 
-**Note:** Auto-discovery only affects inventory reports (no prefix). Optimization (`opt_*`) and security (`sec_*`) reports are still controlled by config.ini.
+**Important:** Auto-discovery applies to **inventory** and **optimization** reports. Security reports (`sec_*`) are not discoverable from billing and must be selected manually.
+
+| Mode | Auto-discover behavior |
+|------|----------------------|
+| `inventory` or `all` | ✅ Discovers inventory services + optimization reports from billing |
+| `optimize` | ✅ Discovers which optimization reports to run based on billing services |
+| `security` | ❌ Skipped: use config.ini or launcher checklist for sec_* keys |
+| `optimize,security` | ✅ Optimization auto-discovered, security via checklist |
+
+**Optimization auto-mapping from billing:**
+- EC2 in billing → enables `opt_ec2_rightsizing`, `opt_ri_sp_advisor`, `opt_idle_resources`
+- RDS in billing → enables `opt_rds_rightsizing`, `opt_idle_resources`
+- EBS in billing → enables `opt_ebs_optimization`
+- S3 in billing → enables `opt_s3_storage`
+- EFS in billing → enables `opt_efs_storage`
+- Data Transfer/NAT Gateway in billing → enables `opt_data_transfer`
+- `opt_summary` and `opt_cost_trend` are always enabled when optimize mode is active
+
+**Skipped services (known billing items without report scripts):**
+- Tax, AWS CloudShell, AWS Amplify, AWS DataSync, Amazon QuickSight, Amazon FSx
+- These are recognized in billing but intentionally don't generate inventory reports
 
 **Unmapped services warning:**
 

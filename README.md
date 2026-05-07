@@ -28,9 +28,11 @@ git clone https://github.com/mohamadsyalvasr/aws-cloud-utility-scripts
 cd aws-cloud-utility-scripts
 
 # Option 1: Interactive TUI (recommended for first-time users)
+chmod +x launcher.sh
 ./launcher.sh
 
 # Option 2: CLI with flags
+chmod +x main_report_runner.sh
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
 
 # Auto-discover: only report services that appear in your billing
@@ -103,7 +105,11 @@ Example output:
 [10:30:04]    Regions: ap-southeast-1,ap-southeast-3,us-east-1
 ```
 
-**Note:** If you pass `-r` explicitly, region auto-discovery is skipped and your specified regions are used instead.
+**Notes:**
+- If you pass `-r` explicitly, region auto-discovery is skipped and your specified regions are used instead.
+- Auto-discovery works for **inventory** and **optimization** modes. For `--mode security`, reports must be selected manually.
+- Optimization mapping: EC2 in billing → enables `opt_ec2_rightsizing`, RDS → `opt_rds_rightsizing`, etc.
+- Services like Tax, CloudShell, and Amplify are recognized but intentionally skipped (no report needed).
 
 This helps you identify gaps — services you're paying for but don't have visibility into.
 
