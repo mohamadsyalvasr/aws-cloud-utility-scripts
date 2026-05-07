@@ -196,6 +196,22 @@ select_parallel() {
         3>&1 1>&2 2>&3) || PARALLEL="1"
 }
 
+select_debug_mode() {
+    if whiptail --title "$TITLE - Debug Mode" --yesno \
+"Enable debug mode?
+
+Debug mode shows detailed information about:
+  • Which config keys are enabled/disabled
+  • Which tasks are built and executed
+  • Region and service discovery details
+
+Useful for troubleshooting when reports don't run as expected." 14 65; then
+        DEBUG_FLAG="--debug"
+    else
+        DEBUG_FLAG=""
+    fi
+}
+
 select_excel_mode() {
     # Only show this for single-mode runs (not mode=all)
     if [[ "$MODE" == "all" ]]; then
@@ -245,6 +261,11 @@ confirm_and_run() {
     # Add auto-discover flag if selected
     if [[ -n "${AUTO_DISCOVER_FLAG:-}" ]]; then
         CMD="$CMD $AUTO_DISCOVER_FLAG"
+    fi
+
+    # Add debug flag if selected
+    if [[ -n "${DEBUG_FLAG:-}" ]]; then
+        CMD="$CMD $DEBUG_FLAG"
     fi
 
     # Build config overrides summary
@@ -371,6 +392,7 @@ show_welcome
 select_mode
 input_date_range
 select_parallel
+select_debug_mode
 select_excel_mode
 select_report_method
 

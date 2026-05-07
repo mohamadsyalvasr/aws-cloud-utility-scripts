@@ -69,6 +69,7 @@ PASS_THROUGH_ARGS=()
 export RUN_MODE="all"
 AUTO_DISCOVER="${AUTO_DISCOVER:-false}"
 EXCEL_MODE="${EXCEL_MODE:-single}"
+DEBUG_MODE="${DEBUG_MODE:-false}"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
@@ -79,6 +80,7 @@ while [[ "$#" -gt 0 ]]; do
         -m|--mode)    shift; RUN_MODE="$1" ;;
         -a|--auto-discover) AUTO_DISCOVER=true ;;
         --excel-mode) shift; EXCEL_MODE="$1" ;;
+        --debug) DEBUG_MODE=true ;;
         -h|--help)
             echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-a] [-s] [-f filename]"
             echo ""
@@ -166,6 +168,38 @@ fi
 
 # --- Build & Run Tasks ---
 build_task_list
+
+# Debug: show what tasks were built
+if [[ "${DEBUG_MODE:-false}" == "true" ]] || [[ ${#TASKS[@]} -eq 0 ]]; then
+    log_start "🐛 DEBUG: build_task_list results:"
+    log_start "   RUN_MODE=$RUN_MODE"
+    log_start "   TASKS count=${#TASKS[@]}"
+    if [[ ${#TASKS[@]} -gt 0 ]]; then
+        for t in "${TASKS[@]}"; do
+            log_start "     → $t"
+        done
+    else
+        log_error "   ⚠️ NO TASKS BUILT! Possible causes:"
+        log_error "     - No reports enabled in config.ini for this mode"
+        log_error "     - Auto-discover didn't set any keys"
+        log_error "     - Mode filter excluded all reports"
+        log_start "   Checking opt_* keys:"
+        for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_cost_trend opt_summary; do
+            log_start "     ${opt_key}=${!opt_key:-0}"
+        done
+        log_start "   Checking sec_* keys:"
+        for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
+            log_start "     ${sec_key}=${!sec_key:-0}"
+        done
+    fi
+fi
+
+if [[ ${#TASKS[@]} -eq 0 ]]; then
+    log_error "No reports to run. Enable reports in config.ini or select them in the launcher."
+    log_error "Exiting."
+    exit 0
+fi
+
 run_tasks "$PARALLEL_ENABLED" "$MAX_PARALLEL"
 
 # --- Summary ---
