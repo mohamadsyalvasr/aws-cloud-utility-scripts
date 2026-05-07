@@ -84,6 +84,18 @@ export/aws-cloud-report-2025-08-31/
 aws_reports_2025-08-31.zip                         # Everything zipped
 ```
 
+## Additional Features
+
+| Feature | Description | Script/Config |
+|---------|-------------|---------------|
+| **Tagging Compliance** | Check resources for mandatory tags (configurable via `MANDATORY_TAGS` env var) | `tagging_compliance=1` |
+| **Resource Lifecycle** | Identify stale AMIs, deprecated runtimes, outdated EKS versions | `resource_lifecycle=1` |
+| **Cost Trend Analysis** | Compare costs between periods, highlight services with >20% increase | `opt_cost_trend=1` |
+| **Multi-Account** | Run reports across multiple AWS accounts via cross-account roles | `./multi_account_runner.sh` |
+| **Compliance Scorecard** | Executive summary with Health Score (0-100) aggregating all reports | `scorecard=1` |
+| **Delta Report** | Compare current run vs baseline — detect NEW/REMOVED/CHANGED resources | `delta_report=1` |
+| **Notifications** | Send summary to Slack, Teams, or Email (SNS) after reports complete | `NOTIFY_SLACK=1` env var |
+
 ## Documentation
 
 Detailed documentation is available in the [`docs/`](docs/) folder:
@@ -93,6 +105,7 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 | [Inventory Reports](docs/inventory-reports.md) | Full list of 50+ inventory scripts with columns and details |
 | [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, pricing data, recommendations |
 | [Security Audit](docs/security-audit.md) | How security auditing works, Trusted Advisor integration, severity levels |
+| [Multi-Account Setup](docs/multi-account-setup.md) | Prerequisites for cross-account reporting (IAM roles, trust policies) |
 | [Configuration Guide](docs/configuration.md) | All config.ini options, environment variables, and modes |
 | [Adding New Reports](docs/adding-reports.md) | How to add your own report scripts to the framework |
 
@@ -101,20 +114,26 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 ```
 .
 ├── main_report_runner.sh               # Main orchestrator
+├── multi_account_runner.sh             # Multi-account wrapper (standalone)
+├── accounts.conf                       # Multi-account target list
 ├── config.ini                          # Report toggles
-├── combine_csv.py                      # Inventory → Excel
-├── combine_optimization_excel.py       # Optimization → multi-sheet Excel
-├── combine_security_excel.py           # Security → multi-sheet Excel (severity colors)
-├── excel_styles.py                     # Excel formatting
 ├── lib/                                # Shared libraries
+│   ├── python/                        #   Python Excel combiners
+│   │   ├── combine_csv.py            #     Inventory → Excel
+│   │   ├── combine_optimization_excel.py  #  Optimization → multi-sheet Excel
+│   │   ├── combine_security_excel.py #     Security → multi-sheet Excel
+│   │   └── excel_styles.py           #     Shared Excel formatting
 │   ├── logger.sh                      #   Logging
 │   ├── task_runner.sh                 #   Sequential/parallel execution
 │   ├── report_registry.sh            #   Report definitions & mode filtering
 │   ├── pricing_helper.sh             #   AWS Pricing API + cache
-│   └── pricing_fallback.json          #   Offline pricing reference
-├── script/                             # Inventory reports (50+ scripts)
-├── script/optimization/                # Cost optimization reports
-├── script/security/                    # Security audit reports
+│   ├── pricing_fallback.json          #   Offline pricing reference
+│   └── notifier.sh                    #   Slack/Teams/SNS notifications
+├── script/
+│   ├── inventory/                      # Inventory reports (50+ scripts)
+│   ├── optimization/                   # Cost optimization reports
+│   ├── security/                       # Security audit reports
+│   └── compliance/                     # Compliance & governance reports
 ├── docs/                               # Documentation
 └── web/                                # Web UI (optional)
 ```
