@@ -118,7 +118,28 @@ if [[ "$AUTO_DISCOVER" == "true" ]]; then
     if auto_discover_services "$START_DATE" "$END_DATE"; then
         log_success "Using auto-discovered service configuration"
     else
-        log_start "⚠️ Auto-discovery failed. Using config.ini settings."
+        log_start "⚠️ Service auto-discovery failed. Using config.ini settings."
+    fi
+
+    # Auto-discover regions (only if -r was NOT explicitly provided)
+    REGIONS_EXPLICITLY_SET=false
+    for arg in "${PASS_THROUGH_ARGS[@]}"; do
+        if [[ "$arg" == "-r" || "$arg" == "--regions" ]]; then
+            REGIONS_EXPLICITLY_SET=true
+            break
+        fi
+    done
+
+    if [[ "$REGIONS_EXPLICITLY_SET" == "false" ]]; then
+        if auto_discover_regions "$START_DATE" "$END_DATE"; then
+            # Inject discovered regions into PASS_THROUGH_ARGS
+            PASS_THROUGH_ARGS+=("-r" "$DISCOVERED_REGIONS")
+            log_success "Using auto-discovered regions: $DISCOVERED_REGIONS"
+        else
+            log_start "⚠️ Region auto-discovery failed. Using default regions."
+        fi
+    else
+        log_start "   Regions explicitly set via -r flag, skipping region auto-discovery."
     fi
 fi
 

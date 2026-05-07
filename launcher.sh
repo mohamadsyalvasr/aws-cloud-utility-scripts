@@ -197,7 +197,12 @@ AWS services are active and enables only those reports." 14 65 3 \
 
 confirm_and_run() {
     # Build the command
-    CMD="./main_report_runner.sh -b $START_DATE -e $END_DATE -r $REGIONS -m $MODE"
+    if [[ "$REPORT_METHOD" == "auto" ]]; then
+        # Auto-discover: don't pass -r (regions will be auto-detected)
+        CMD="./main_report_runner.sh -b $START_DATE -e $END_DATE -m $MODE"
+    else
+        CMD="./main_report_runner.sh -b $START_DATE -e $END_DATE -r $REGIONS -m $MODE"
+    fi
 
     # Add auto-discover flag if selected
     if [[ -n "${AUTO_DISCOVER_FLAG:-}" ]]; then
@@ -317,14 +322,28 @@ fi
 show_welcome
 select_mode
 input_date_range
-input_regions
 select_parallel
 select_report_method
 
+# Region selection: auto-discover skips manual region input
+if [[ "$REPORT_METHOD" == "auto" ]]; then
+    # Auto-discover mode: regions will be auto-detected from billing
+    AUTO_DISCOVER_FLAG="-a"
+    REGIONS="auto-detected"
+    whiptail --title "$TITLE - Regions" --msgbox \
+"Regions will be auto-detected from billing data.
+
+If you want to override, use CLI directly:
+  ./main_report_runner.sh -b $START_DATE -e $END_DATE -a -r us-east-1,eu-west-1" 12 65
+else
+    # Manual mode: ask for regions
+    input_regions
+    AUTO_DISCOVER_FLAG=""
+fi
+
 # Show report selection based on mode and method
 if [[ "$REPORT_METHOD" == "auto" ]]; then
-    # Auto-discover mode: skip manual checklist, add -a flag
-    AUTO_DISCOVER_FLAG="-a"
+    : # Already set AUTO_DISCOVER_FLAG above
 elif [[ "$REPORT_METHOD" == "manual" ]]; then
     AUTO_DISCOVER_FLAG=""
     case "$MODE" in

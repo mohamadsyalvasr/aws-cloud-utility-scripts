@@ -164,10 +164,16 @@ auto-detect which services are active based on your AWS billing data:
 ```
 
 **How it works:**
-1. Queries Cost Explorer for services with non-zero cost in the specified period
-2. Maps billing service names to report config keys using pattern matching
-3. Enables only the reports for services that appear in billing
-4. Falls back to config.ini if Cost Explorer is unavailable
+1. Queries Cost Explorer for services with non-zero cost → enables matching reports
+2. Queries Cost Explorer for regions with non-zero cost → sets active regions
+3. Maps billing service names to report config keys using pattern matching
+4. Reports unmapped services (in billing but no script available)
+5. Falls back to config.ini / default regions if Cost Explorer is unavailable
+
+**Region auto-discovery:**
+- If `-r` is NOT explicitly passed, regions are auto-detected from billing
+- If `-r` IS passed, region auto-discovery is skipped (your explicit regions are used)
+- Global services (IAM, S3, CloudFront, Route 53) don't need region detection
 
 **Requirements:**
 - Cost Explorer access (`ce:GetCostAndUsage` permission)

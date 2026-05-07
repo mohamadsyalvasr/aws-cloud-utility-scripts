@@ -183,3 +183,63 @@ auto_discover_services() {
 
     return 0
 }
+
+# =============================================================================
+# Auto-discover active regions from Cost Explorer billing data.
+# Sets DISCOVERED_REGIONS variable with comma-separated list of active regions.
+# =============================================================================
+auto_discover_regions() {
+    local start_date="${1:-$START_DATE}"
+    local end_date="${2:-$END_DATE}"
+
+    # Validate dates
+    if [[ -z "$start_date" || -z "$end_date" ]]; then
+        log_error "auto_discover_regions requires start and end dates"
+        return 1
+    fi
+
+    log_start "🌍 Auto-discovering active regions from billing data..."
+
+    # Query Cost Explorer grouped by REGION
+    local ce_result
+    set +e
+    ce_result=$(aws ce get-cost-and-usage \
+        --time-period Start="$start_date",End="$end_date" \
+        --granularity MONTHLY \
+        --metrics UnblendedCost \
+        --group-by Type=DIMENSION,Key=REGION \
+        --output json 2>&1)
+    local ce_exit=$?
+    set -e
+
+    if [[ $ce_exit -ne 0 ]]; then
+        log_error "Cost Explorer error during region discovery. Using default regions."
+        return 1
+    fi
+
+    # Extract regions with non-zero cost (exclude "global" and empty)
+    local regions
+    regions=$(echo "$ce_result" | jq -r '
+        [.ResultsByTime[].Groups[] |
+         select((.Metrics.UnblendedCost.Amount | tonumber) > 0) |
+         .Keys[0]] | unique | .[] |
+        select(. != "" and . != "global" and . != "NoRegion")
+    ' 2>/dev/null)
+
+    if [[ -z "$regions" ]]; then
+        log_start "   ⚠️ No regions with cost found. Using default regions."
+        return 1
+    fi
+
+    local region_count
+    region_count=$(echo "$regions" | wc -l | tr -d '[:space:]')
+
+    # Convert to comma-separated
+    DISCOVERED_REGIONS=$(echo "$regions" | tr '\n' ',' | sed 's/,$//')
+
+    log_success "Region discovery complete: $region_count region(s) found"
+    log_start "   Regions: $DISCOVERED_REGIONS"
+
+    export DISCOVERED_REGIONS
+    return 0
+}
