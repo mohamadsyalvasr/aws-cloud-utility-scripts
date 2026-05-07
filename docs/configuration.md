@@ -14,7 +14,7 @@ ec2=1           # Amazon EC2 instances
 rds=1           # Amazon RDS databases
 s3=1            # Amazon S3 buckets
 lambda=0        # AWS Lambda functions
-# ... (50+ services available)
+# ... (60+ services available)
 
 ; =============================================================================
 ; Price Optimization Reports (opt_ prefix)

@@ -1,6 +1,6 @@
 # Inventory Reports
 
-This tool generates detailed CSV reports for 50+ AWS services. Each report script collects resource metadata via AWS CLI and outputs a structured CSV file.
+This tool generates detailed CSV reports for 60+ AWS services. Each report script collects resource metadata via AWS CLI and outputs a structured CSV file.
 
 ## Supported Services
 
@@ -52,9 +52,17 @@ This tool generates detailed CSV reports for 50+ AWS services. Each report scrip
 | `ssm_params_report.sh` | AWS SSM Parameter Store | Parameters (type, tier, version). No values exposed |
 | `stepfunctions_report.sh` | AWS Step Functions | State machines (type, status, creation date) |
 | `transitgateway_report.sh` | AWS Transit Gateway | TGWs (state, ASN, attachment count) |
+| `transfer_family_report.sh` | AWS Transfer Family | Servers (protocol, state, endpoint type, identity provider) |
 | `vpc_report.sh` | Amazon VPC | VPC resources (subnets, IGW, NAT, SGs, EIPs) |
 | `vpn_report.sh` | AWS VPN | Site-to-Site VPN connections (state, gateway IDs) |
 | `waf_report.sh` | AWS WAF | Web ACLs with allowed/blocked request counts |
+| `apprunner_report.sh` | AWS App Runner | Services (status, source type, CPU, memory, URL) |
+| `cognito_report.sh` | Amazon Cognito | User Pools (user count, MFA config, status) |
+| `documentdb_report.sh` | Amazon DocumentDB | Clusters (engine version, status, instances, encryption) |
+| `grafana_report.sh` | Amazon Managed Grafana | Workspaces (status, authentication, endpoint) |
+| `mq_report.sh` | Amazon MQ | Brokers (engine type/version, instance type, deployment mode) |
+| `msk_report.sh` | Amazon MSK | Kafka clusters (type, state, version, broker nodes) |
+| `neptune_report.sh` | Amazon Neptune | Graph DB clusters (version, status, instances, encryption) |
 
 ## Global vs Regional Services
 

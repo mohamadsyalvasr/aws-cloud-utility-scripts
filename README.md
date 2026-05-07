@@ -2,11 +2,19 @@
 
 A comprehensive toolkit for AWS infrastructure **inventory reporting**, **cost optimization**, and **security auditing**. Run from AWS CloudShell or any environment with AWS CLI configured.
 
+## Prerequisites
+
+- **AWS CLI v2** — pre-installed on CloudShell
+- **jq** — JSON processor
+- **bc** — calculator
+- **python3** + `pandas` + `xlsxwriter`
+- **zip** — for archiving
+
 ## Features
 
 | Mode | Description | Flag |
 |------|-------------|------|
-| **Inventory** | Generate detailed CSV/Excel reports for 50+ AWS services | `--mode inventory` |
+| **Inventory** | Generate detailed CSV/Excel reports for 60+ AWS services | `--mode inventory` |
 | **Optimize** | Analyze resource utilization and recommend cost savings | `--mode optimize` |
 | **Security** | Audit security configurations and compliance | `--mode security` |
 
@@ -158,7 +166,7 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 
 | Document | Description |
 |----------|-------------|
-| [Inventory Reports](docs/inventory-reports.md) | Full list of 50+ inventory scripts with columns and details |
+| [Inventory Reports](docs/inventory-reports.md) | Full list of 60+ inventory scripts with columns and details |
 | [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, pricing data, recommendations |
 | [Security Audit](docs/security-audit.md) | How security auditing works, Trusted Advisor integration, severity levels |
 | [Multi-Account Setup](docs/multi-account-setup.md) | Prerequisites for cross-account reporting (IAM roles, trust policies) |
@@ -187,21 +195,13 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 │   ├── pricing_fallback.json          #   Offline pricing reference
 │   └── notifier.sh                    #   Slack/Teams/SNS notifications
 ├── script/
-│   ├── inventory/                      # Inventory reports (50+ scripts)
+│   ├── inventory/                      # Inventory reports (60+ scripts)
 │   ├── optimization/                   # Cost optimization reports
 │   ├── security/                       # Security audit reports
 │   └── compliance/                     # Compliance & governance reports
 ├── docs/                               # Documentation
 └── web/                                # Web UI (optional)
 ```
-
-## Prerequisites
-
-- **AWS CLI v2** — pre-installed on CloudShell
-- **jq** — JSON processor
-- **bc** — calculator
-- **python3** + `pandas` + `xlsxwriter`
-- **zip** — for archiving
 
 ## License
 
