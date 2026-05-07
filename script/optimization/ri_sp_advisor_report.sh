@@ -134,11 +134,15 @@ for region in "${REGIONS[@]}"; do
     log "  Found $SP_COUNT active Savings Plan(s)"
 
     # --- Step 4: Process each running instance ---
+    RI_IDX=0
     echo "$INSTANCES_DATA" | jq -c '.[]' | while read -r instance; do
+        RI_IDX=$((RI_IDX + 1))
         INSTANCE_ID=$(echo "$instance" | jq -r '.InstanceId')
         INSTANCE_TYPE=$(echo "$instance" | jq -r '.InstanceType')
         LAUNCH_TIME=$(echo "$instance" | jq -r '.LaunchTime')
         AVAILABILITY_ZONE=$(echo "$instance" | jq -r '.Placement.AvailabilityZone')
+
+        log "  [$RI_IDX/$INSTANCE_COUNT] Checking: $INSTANCE_ID ($INSTANCE_TYPE)"
 
         # Check if instance was launched before the analysis start date (running continuously)
         LAUNCH_EPOCH=$(date -u -d "$LAUNCH_TIME" +%s 2>/dev/null || echo "0")

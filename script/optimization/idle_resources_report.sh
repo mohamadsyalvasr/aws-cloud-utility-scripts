@@ -231,7 +231,9 @@ for region in "${REGIONS[@]}"; do
     if [[ "$LAMBDA_COUNT" -gt 0 ]]; then
         log "  [Lambda] Checking $LAMBDA_COUNT function(s) for invocations..."
 
+        LAMBDA_IDX=0
         echo "$LAMBDA_DATA" | jq -c '.[]' | while read -r func; do
+            LAMBDA_IDX=$((LAMBDA_IDX + 1))
             FUNC_NAME=$(echo "$func" | jq -r '.FunctionName')
             FUNC_ARN=$(echo "$func" | jq -r '.FunctionArn')
 
@@ -298,7 +300,9 @@ for region in "${REGIONS[@]}"; do
     if [[ "$RDS_COUNT" -gt 0 ]]; then
         log "  [RDS] Checking $RDS_COUNT instance(s) for connections..."
 
+        RDS_IDX=0
         echo "$RDS_DATA" | jq -c '.[]' | while read -r rds_instance; do
+            RDS_IDX=$((RDS_IDX + 1))
             DB_INSTANCE_ID=$(echo "$rds_instance" | jq -r '.DBInstanceIdentifier')
             DB_INSTANCE_CLASS=$(echo "$rds_instance" | jq -r '.DBInstanceClass')
             DB_INSTANCE_ARN=$(echo "$rds_instance" | jq -r '.DBInstanceArn')
@@ -372,7 +376,9 @@ for region in "${REGIONS[@]}"; do
     if [[ "$ELB_COUNT" -gt 0 ]]; then
         log "  [ELB] Checking $ELB_COUNT load balancer(s)..."
 
+        ELB_IDX=0
         echo "$ELB_DATA" | jq -c '.[]' | while read -r elb; do
+            ELB_IDX=$((ELB_IDX + 1))
             LB_ARN=$(echo "$elb" | jq -r '.LoadBalancerArn')
             LB_NAME=$(echo "$elb" | jq -r '.LoadBalancerName')
             LB_TYPE=$(echo "$elb" | jq -r '.Type')

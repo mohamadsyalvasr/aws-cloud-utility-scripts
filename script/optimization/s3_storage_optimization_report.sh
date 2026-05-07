@@ -150,7 +150,7 @@ log "✅ Dependencies met."
 log "📊 S3 Storage Optimization Analysis"
 log "✍️ Preparing output file: $OUTPUT_FILE"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
-printf '"Bucket Name","Region","Total Size GB","Current Storage Class Distribution","Has Lifecycle Policy","Last Access Pattern","Recommendation","Estimated Monthly Savings"\n' > "$OUTPUT_FILE"
+printf '"Bucket Name","Region","Total Size GB","Current Storage Class Distribution","Has Lifecycle Policy","Versioning","Last Access Pattern","Recommendation","Estimated Monthly Savings"\n' > "$OUTPUT_FILE"
 
 # List all S3 buckets
 log "📋 Listing all S3 buckets..."
@@ -162,7 +162,9 @@ BUCKETS_JSON=$(aws s3api list-buckets --query 'Buckets[].Name' --output json 2>/
 BUCKET_COUNT=$(echo "$BUCKETS_JSON" | jq 'length')
 log "  Found $BUCKET_COUNT bucket(s) total"
 
+S3_IDX=0
 echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
+    S3_IDX=$((S3_IDX + 1))
     # Get bucket region
     bucket_region=$(aws s3api get-bucket-location --bucket "$bucket_name" \
         --query 'LocationConstraint' --output text 2>/dev/null) || {
@@ -188,7 +190,7 @@ echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
         continue
     fi
 
-    log "  Analyzing bucket: $bucket_name (region: $bucket_region)"
+    log "  [$S3_IDX/$BUCKET_COUNT] Analyzing: $bucket_name (region: $bucket_region)"
 
     # --- Check lifecycle policy ---
     has_lifecycle="No"
@@ -196,6 +198,10 @@ echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
     if echo "$lifecycle_output" | jq -e '.Rules' >/dev/null 2>&1; then
         has_lifecycle="Yes"
     fi
+
+    # --- Check versioning status ---
+    versioning_status=$(aws s3api get-bucket-versioning --bucket "$bucket_name" --output json 2>/dev/null) || versioning_status="{}"
+    versioning=$(echo "$versioning_status" | jq -r '.Status // "Disabled"')
 
     # --- Get bucket size per storage type from CloudWatch ---
     standard_bytes=$(get_bucket_size_bytes "$bucket_name" "$bucket_region" "StandardStorage")
@@ -213,12 +219,13 @@ echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
     if [[ $(echo "$total_bytes == 0" | bc -l) -eq 1 ]]; then
         # No CloudWatch metrics available - mark as insufficient data
         log "    ⚠️ No CloudWatch metrics available for $bucket_name"
-        printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+        printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
             "$bucket_name" \
             "$bucket_region" \
             "N/A" \
             "N/A" \
             "$has_lifecycle" \
+            "$versioning" \
             "Insufficient Data" \
             "Insufficient Data" \
             "N/A" >> "$OUTPUT_FILE"
@@ -345,6 +352,11 @@ echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
         # Estimate savings assuming 30% of data could transition to IA
         eligible_gb=$(echo "$standard_gb_num * 0.30" | bc -l)
         estimated_savings=$(echo "($price_standard - $price_ia) * $eligible_gb" | bc -l | xargs printf "%.2f")
+    # Check for versioning without lifecycle (old versions accumulate)
+    elif [[ "$versioning" == "Enabled" ]] && [[ "$has_lifecycle" == "No" ]] && [[ $(echo "$total_gb_num > 50" | bc -l) -eq 1 ]]; then
+        recommendation="Add lifecycle policy to expire old versions"
+        # Old versions typically add 20% overhead
+        estimated_savings=$(echo "$total_gb_num * $price_standard * 0.20" | bc -l | xargs printf "%.2f")
     fi
 
     # Ensure savings is non-negative
@@ -359,17 +371,18 @@ echo "$BUCKETS_JSON" | jq -r '.[]' | while read -r bucket_name; do
         estimated_savings="0.00"
     fi
 
-    log "    📦 Size: ${total_gb} GB | Storage: ${storage_distribution} | Lifecycle: ${has_lifecycle} | Access: ${access_pattern}"
+    log "    📦 Size: ${total_gb} GB | Storage: ${storage_distribution} | Lifecycle: ${has_lifecycle} | Versioning: ${versioning} | Access: ${access_pattern}"
     if [[ "$recommendation" != "None" ]]; then
         log "    💰 Recommendation: ${recommendation} | Savings: \$${estimated_savings}/month"
     fi
 
-    printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+    printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
         "$bucket_name" \
         "$bucket_region" \
         "$total_gb" \
         "$storage_distribution" \
         "$has_lifecycle" \
+        "$versioning" \
         "$access_pattern" \
         "$recommendation" \
         "$estimated_savings" >> "$OUTPUT_FILE"

@@ -99,38 +99,42 @@ for region in "${REGIONS[@]}"; do
     if [[ "$INSTANCE_COUNT" -gt 0 ]]; then
         log "  Found $INSTANCE_COUNT RDS instance(s) in $region"
 
+        CURRENT_IDX=0
         echo "$INSTANCES_DATA" | jq -c '.[]' | while read -r instance; do
+            CURRENT_IDX=$((CURRENT_IDX + 1))
             DB_INSTANCE_ID=$(echo "$instance" | jq -r '.DBInstanceIdentifier')
             DB_ENGINE=$(echo "$instance" | jq -r '.Engine')
             DB_CLASS=$(echo "$instance" | jq -r '.DBInstanceClass')
             MULTI_AZ=$(echo "$instance" | jq -r '.MultiAZ')
             ALLOCATED_STORAGE=$(echo "$instance" | jq -r '.AllocatedStorage') # in GiB
 
-            log "  Analyzing instance: $DB_INSTANCE_ID ($DB_CLASS, Engine: $DB_ENGINE, MultiAZ: $MULTI_AZ)"
+            log "  [$CURRENT_IDX/$INSTANCE_COUNT] Analyzing: $DB_INSTANCE_ID ($DB_CLASS, Engine: $DB_ENGINE)"
 
             # Get average CPU utilization from CloudWatch
+            # Use 86400s (1 day) period to get daily datapoints, then average them
             AVG_CPU=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/RDS \
                 --metric-name CPUUtilization \
                 --dimensions Name=DBInstanceIdentifier,Value="$DB_INSTANCE_ID" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
-                --period "$PERIOD" \
+                --period 86400 \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                --output text)
+                --query "Datapoints[].Average" \
+                --output json 2>/dev/null | jq 'if length > 0 then (add / length) else null end') || true
 
             # Get average FreeableMemory from CloudWatch (in bytes)
+            # Use 86400s (1 day) period to get daily datapoints, then average them
             AVG_FREEABLE_MEMORY=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/RDS \
                 --metric-name FreeableMemory \
                 --dimensions Name=DBInstanceIdentifier,Value="$DB_INSTANCE_ID" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
-                --period "$PERIOD" \
+                --period 86400 \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                --output text)
+                --query "Datapoints[].Average" \
+                --output json 2>/dev/null | jq 'if length > 0 then (add / length) else null end') || true
 
             # Get average FreeStorageSpace from CloudWatch (in bytes)
             AVG_FREE_STORAGE=$(aws cloudwatch get-metric-statistics --region "$region" \
@@ -139,10 +143,10 @@ for region in "${REGIONS[@]}"; do
                 --dimensions Name=DBInstanceIdentifier,Value="$DB_INSTANCE_ID" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
-                --period "$PERIOD" \
+                --period 86400 \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                --output text)
+                --query "Datapoints[].Average" \
+                --output json 2>/dev/null | jq 'if length > 0 then (add / length) else null end') || true
 
             # Handle null/None values
             AVG_CPU=${AVG_CPU:-"N/A"}

@@ -99,37 +99,41 @@ for region in "${REGIONS[@]}"; do
     if [[ "$INSTANCE_COUNT" -gt 0 ]]; then
         log "  Found $INSTANCE_COUNT running instance(s) in $region"
 
+        CURRENT_IDX=0
         echo "$INSTANCES_DATA" | jq -c '.[]' | while read -r instance; do
+            CURRENT_IDX=$((CURRENT_IDX + 1))
             INSTANCE_ID=$(echo "$instance" | jq -r '.InstanceId')
             INSTANCE_TYPE=$(echo "$instance" | jq -r '.InstanceType')
             INSTANCE_NAME=$(echo "$instance" | jq -r '(.Tags // [])[] | select(.Key == "Name") | .Value // "N/A"')
             INSTANCE_NAME="${INSTANCE_NAME:-N/A}"
 
-            log "  Analyzing instance: $INSTANCE_ID ($INSTANCE_TYPE)"
+            log "  [$CURRENT_IDX/$INSTANCE_COUNT] Analyzing: $INSTANCE_ID ($INSTANCE_TYPE)"
 
             # Get average CPU utilization from CloudWatch
+            # Use 86400s (1 day) period to get daily datapoints, then average them
             AVG_CPU=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace AWS/EC2 \
                 --metric-name CPUUtilization \
                 --dimensions Name=InstanceId,Value="$INSTANCE_ID" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
-                --period "$PERIOD" \
+                --period 86400 \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                --output text)
+                --query "Datapoints[].Average" \
+                --output json 2>/dev/null | jq 'if length > 0 then (add / length) else null end') || true
 
             # Get average memory utilization from CloudWatch Agent
+            # Use 86400s (1 day) period to get daily datapoints, then average them
             AVG_MEMORY=$(aws cloudwatch get-metric-statistics --region "$region" \
                 --namespace CWAgent \
                 --metric-name mem_used_percent \
                 --dimensions Name=InstanceId,Value="$INSTANCE_ID" \
                 --start-time "$START_TIME" \
                 --end-time "$END_TIME" \
-                --period "$PERIOD" \
+                --period 86400 \
                 --statistics Average \
-                --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-                --output text)
+                --query "Datapoints[].Average" \
+                --output json 2>/dev/null | jq 'if length > 0 then (add / length) else null end') || true
 
             # Handle null/None values
             AVG_CPU=${AVG_CPU:-"N/A"}
