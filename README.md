@@ -19,11 +19,14 @@ All modes can be combined: `--mode optimize,security`
 git clone https://github.com/mohamadsyalvasr/aws-cloud-utility-scripts
 cd aws-cloud-utility-scripts
 
-# Make the Main Script Executable
-chmod +x main_report_runner.sh
+# Option 1: Interactive TUI (recommended for first-time users)
+./launcher.sh
 
-# Run all enabled reports
+# Option 2: CLI with flags
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+
+# Auto-discover: only report services that appear in your billing
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 --auto-discover
 
 # Run only optimization reports
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m optimize
@@ -40,9 +43,62 @@ chmod +x main_report_runner.sh
 | `-e <date>` | **Required.** End date (YYYY-MM-DD) |
 | `-r <regions>` | Comma-separated regions. Default: `ap-southeast-1,ap-southeast-3` |
 | `-m <mode>` | Run mode: `all`, `inventory`, `optimize`, `security` (comma-separated) |
+| `-a, --auto-discover` | Auto-enable reports based on billing data (requires Cost Explorer access) |
 | `-s` | Sum attached EBS volumes in EC2 report |
 | `-f <filename>` | Custom output filename |
 | `-h` | Show help |
+
+### Auto-Discovery Mode
+
+When using `--auto-discover`, the tool queries Cost Explorer to detect which services are active in your account and only runs reports for those services. If a billing service has no matching report script, it will be listed as a warning:
+
+```
+[10:30:05] ✅ Auto-discovery complete: 12 report(s) enabled
+[10:30:05]    Enabled: acm cloudwatch ec2 ebs_detailed elb iam lambda rds s3 sns sqs vpc
+[10:30:05]
+[10:30:05]    ⚠️  Services found in billing but NO report script available:
+[10:30:05]    ────────────────────────────────────────────────────────────
+[10:30:05]      • AWS Support (Business)
+[10:30:05]      • Tax
+[10:30:05]      • AWS Marketplace
+[10:30:05]    ────────────────────────────────────────────────────────────
+[10:30:05]    These services are being billed but won't be inventoried.
+[10:30:05]    Consider adding report scripts for them (see docs/adding-reports.md)
+```
+
+This helps you identify gaps — services you're paying for but don't have visibility into.
+
+## Interactive Launcher (TUI)
+
+For users who prefer a guided experience, use the interactive launcher:
+
+```bash
+./launcher.sh
+```
+
+The launcher uses `whiptail` (pre-installed on AWS CloudShell and most Linux distros) to provide a terminal GUI with:
+
+1. **Welcome screen** — overview of what the tool does
+2. **Mode selection** — radio buttons for inventory/optimize/security/all
+3. **Report selection method** — auto-discover from billing, manual checklist, or use config.ini
+4. **Date range input** — start and end dates with defaults (last 30 days)
+5. **Region input** — comma-separated regions
+6. **Execution mode** — parallel or sequential
+7. **Report checklist** — checkboxes to toggle individual reports (if manual mode)
+8. **Confirmation** — review settings and execute
+
+```
+┌─────────── Report Selection Method ─────────────┐
+│                                                  │
+│  (*) Auto-discover from billing (recommended)    │
+│  ( ) Manual selection from checklist             │
+│  ( ) Use config.ini as-is                        │
+│                                                  │
+│           <OK>        <Cancel>                   │
+└──────────────────────────────────────────────────┘
+```
+
+**Prerequisite:** `whiptail` — if not available, the script shows install instructions and suggests using the CLI directly.
 
 ## Configuration
 
@@ -113,7 +169,8 @@ Detailed documentation is available in the [`docs/`](docs/) folder:
 
 ```
 .
-├── main_report_runner.sh               # Main orchestrator
+├── main_report_runner.sh               # Main orchestrator (CLI)
+├── launcher.sh                         # Interactive TUI launcher (whiptail)
 ├── multi_account_runner.sh             # Multi-account wrapper (standalone)
 ├── accounts.conf                       # Multi-account target list
 ├── config.ini                          # Report toggles

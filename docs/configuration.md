@@ -154,6 +154,56 @@ max_parallel=2   # Concurrent script limit
 - EC2/local with good network: `max_parallel=4`
 - Large accounts (1000+ resources): `max_parallel=2` to avoid API throttling
 
+## Auto-Discovery Mode
+
+Instead of manually enabling reports in config.ini, you can let the tool
+auto-detect which services are active based on your AWS billing data:
+
+```bash
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 --auto-discover
+```
+
+**How it works:**
+1. Queries Cost Explorer for services with non-zero cost in the specified period
+2. Maps billing service names to report config keys using pattern matching
+3. Enables only the reports for services that appear in billing
+4. Falls back to config.ini if Cost Explorer is unavailable
+
+**Requirements:**
+- Cost Explorer access (`ce:GetCostAndUsage` permission)
+- The `-b` and `-e` date flags (used as the billing lookup period)
+
+**Always enabled regardless of billing:**
+- `iam` — IAM is global and always relevant
+- `billing` — proves Cost Explorer works
+
+**Pattern matching handles variations:**
+- "Amazon Elastic Compute Cloud - Compute" → enables `ec2`, `ebs_detailed`
+- "EC2 - Other" → enables `ec2`, `ebs_detailed`, `ebs_utilization`, `natgateway`
+- "Amazon Virtual Private Cloud" → enables `vpc`, `vpn`
+
+**Combining with modes:**
+```bash
+# Auto-discover inventory + run all optimization
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -m all
+
+# Auto-discover inventory only
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -m inventory
+```
+
+**Note:** Auto-discovery only affects inventory reports (no prefix). Optimization (`opt_*`) and security (`sec_*`) reports are still controlled by config.ini.
+
+**Unmapped services warning:**
+
+When a service appears in billing but has no matching report script, the tool displays a warning listing those services. This helps you identify visibility gaps — services you're paying for but don't have inventory reports for.
+
+Common unmapped services (expected, no action needed):
+- `Tax` — not a service, just tax charges
+- `AWS Support (Business)` — support plan fee
+- `AWS Marketplace` — third-party software
+
+If you see a real AWS service listed as unmapped, consider creating a report script for it (see [Adding New Reports](adding-reports.md)).
+
 ## AWS Permissions Required
 
 The scripts need read-only access to AWS services. Recommended IAM policy:

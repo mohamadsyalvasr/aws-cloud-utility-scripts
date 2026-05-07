@@ -10,6 +10,7 @@ source ./lib/logger.sh
 source ./lib/task_runner.sh
 source ./lib/report_registry.sh
 source ./lib/notifier.sh
+source ./lib/auto_discover.sh
 
 # --- Start ---
 log_start "🚀 Starting combined AWS report generation..."
@@ -66,6 +67,7 @@ MAX_PARALLEL="${max_parallel:-3}"
 # --- Parse CLI Arguments ---
 PASS_THROUGH_ARGS=()
 export RUN_MODE="all"
+AUTO_DISCOVER="${AUTO_DISCOVER:-false}"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
@@ -74,8 +76,19 @@ while [[ "$#" -gt 0 ]]; do
         -s|--sum-ebs) PASS_THROUGH_ARGS+=("$1") ;;
         -f|--filename) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
         -m|--mode)    shift; RUN_MODE="$1" ;;
+        -a|--auto-discover) AUTO_DISCOVER=true ;;
         -h|--help)
-            echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-s] [-f filename]"
+            echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-a] [-s] [-f filename]"
+            echo ""
+            echo "Options:"
+            echo "  -b, --begin <date>   Start date (YYYY-MM-DD) — required"
+            echo "  -e, --end <date>     End date (YYYY-MM-DD) — required"
+            echo "  -r, --regions        Comma-separated AWS regions"
+            echo "  -m, --mode           Run mode: all, inventory, optimize, security (comma-separated)"
+            echo "  -a, --auto-discover  Auto-enable reports based on billing data (requires Cost Explorer access)"
+            echo "  -s, --sum-ebs        Sum attached EBS volumes in EC2 report"
+            echo "  -f, --filename       Custom output filename"
+            echo "  -h, --help           Show this help"
             echo ""
             echo "Modes (comma-separated for multiple):"
             echo "  all                Run all enabled reports (default)"
@@ -88,6 +101,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "  $0 -b 2025-08-01 -e 2025-08-31                    # Run all"
             echo "  $0 -b 2025-08-01 -e 2025-08-31 -m optimize       # Only optimization"
             echo "  $0 -b 2025-08-01 -e 2025-08-31 -m optimize,security  # Opt + Security"
+            echo "  $0 -b 2025-08-01 -e 2025-08-31 --auto-discover   # Auto-discover from billing"
             echo ""
             echo "  Edit config.ini to select which reports to run within each mode."
             exit 0
@@ -98,6 +112,15 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 log_start "📋 Run mode: ${RUN_MODE}"
+
+# --- Auto-Discovery (if enabled) ---
+if [[ "$AUTO_DISCOVER" == "true" ]]; then
+    if auto_discover_services "$START_DATE" "$END_DATE"; then
+        log_success "Using auto-discovered service configuration"
+    else
+        log_start "⚠️ Auto-discovery failed. Using config.ini settings."
+    fi
+fi
 
 # --- Build & Run Tasks ---
 build_task_list
