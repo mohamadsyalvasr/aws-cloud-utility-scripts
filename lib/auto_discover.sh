@@ -136,6 +136,9 @@ auto_discover_services() {
     local enabled_keys=()
     # Track services that have no matching pattern (unmapped)
     local unmapped_services=()
+    # File to store key=value pairs for sourcing after function returns
+    local keys_file="${OUTPUT_DIR}/.discovered_keys"
+    : > "$keys_file"  # Create/truncate
 
     # Match each billing service against patterns
     while IFS= read -r service_name; do
@@ -152,8 +155,7 @@ auto_discover_services() {
                     continue
                 fi
                 for key in $keys; do
-                    # Set the variable (export so it's available to build_task_list)
-                    eval "export ${key}=1"
+                    echo "${key}=1" >> "$keys_file"
                     enabled_keys+=("$key")
                 done
             fi
@@ -164,6 +166,17 @@ auto_discover_services() {
             unmapped_services+=("$service_name")
         fi
     done <<< "$services"
+
+    # Source the discovered keys file to set variables in the calling shell
+    if [[ -s "$keys_file" ]]; then
+        # Deduplicate and source
+        sort -u "$keys_file" > "${keys_file}.tmp" && mv "${keys_file}.tmp" "$keys_file"
+        source "$keys_file"
+        # Also export them
+        while IFS='=' read -r k v; do
+            export "$k=$v"
+        done < "$keys_file"
+    fi
 
     # Deduplicate and report
     local unique_keys
@@ -193,6 +206,9 @@ auto_discover_services() {
 
     # Always enable IAM (global, always relevant)
     export iam=1
+
+    # Export the keys file path so main_report_runner can re-source if needed
+    export DISCOVERED_KEYS_FILE="$keys_file"
 
     return 0
 }

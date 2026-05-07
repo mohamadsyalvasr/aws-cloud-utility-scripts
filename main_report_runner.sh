@@ -146,6 +146,20 @@ if [[ "$AUTO_DISCOVER" == "true" ]]; then
 
         if auto_discover_services "$START_DATE" "$END_DATE"; then
             log_success "Using auto-discovered service configuration"
+            # Re-source discovered keys to ensure they're set in this shell
+            if [[ -n "${DISCOVERED_KEYS_FILE:-}" && -f "${DISCOVERED_KEYS_FILE:-}" ]]; then
+                source "$DISCOVERED_KEYS_FILE"
+                # Debug: show which opt_* keys are enabled
+                local opt_enabled_list=""
+                while IFS='=' read -r k v; do
+                    if [[ "$k" == opt_* && "$v" == "1" ]]; then
+                        opt_enabled_list="${opt_enabled_list} ${k}"
+                    fi
+                done < "$DISCOVERED_KEYS_FILE"
+                if [[ -n "$opt_enabled_list" ]]; then
+                    log_start "   Optimization reports enabled:${opt_enabled_list}"
+                fi
+            fi
             # Always enable opt_summary and opt_cost_trend when optimize mode is active
             if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
                 export opt_summary=1
