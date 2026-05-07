@@ -52,9 +52,27 @@ cd aws-cloud-utility-scripts
 | `-r <regions>` | Comma-separated regions. Default: `ap-southeast-1,ap-southeast-3` |
 | `-m <mode>` | Run mode: `all`, `inventory`, `optimize`, `security` (comma-separated) |
 | `-a, --auto-discover` | Auto-enable reports based on billing data (requires Cost Explorer access) |
+| `--excel-mode <mode>` | Excel output: `single` (1 sheet) or `multi` (1 sheet per service). Default: `single` |
 | `-s` | Sum attached EBS volumes in EC2 report |
 | `-f <filename>` | Custom output filename |
 | `-h` | Show help |
+
+### Excel Output Modes
+
+| Run Mode | Excel Behavior |
+|----------|---------------|
+| `--mode all` | **Automatic**: 1 file with 3 sheets — Inventory, Optimization, Security |
+| `--mode inventory` | Default: 1 sheet. With `--excel-mode multi`: 1 sheet per AWS service |
+| `--mode optimize` | Always multi-sheet (1 sheet per optimization category) |
+| `--mode security` | Always multi-sheet (1 sheet per security category) |
+
+```bash
+# Mode all → 3 sheets grouped by type
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+
+# Inventory with 1 sheet per service
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m inventory --excel-mode multi
+```
 
 ### Auto-Discovery Mode
 

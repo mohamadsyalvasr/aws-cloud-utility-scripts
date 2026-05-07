@@ -68,6 +68,7 @@ MAX_PARALLEL="${max_parallel:-3}"
 PASS_THROUGH_ARGS=()
 export RUN_MODE="all"
 AUTO_DISCOVER="${AUTO_DISCOVER:-false}"
+EXCEL_MODE="${EXCEL_MODE:-single}"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
@@ -77,6 +78,7 @@ while [[ "$#" -gt 0 ]]; do
         -f|--filename) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
         -m|--mode)    shift; RUN_MODE="$1" ;;
         -a|--auto-discover) AUTO_DISCOVER=true ;;
+        --excel-mode) shift; EXCEL_MODE="$1" ;;
         -h|--help)
             echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-a] [-s] [-f filename]"
             echo ""
@@ -86,6 +88,8 @@ while [[ "$#" -gt 0 ]]; do
             echo "  -r, --regions        Comma-separated AWS regions"
             echo "  -m, --mode           Run mode: all, inventory, optimize, security (comma-separated)"
             echo "  -a, --auto-discover  Auto-enable reports based on billing data (requires Cost Explorer access)"
+            echo "  --excel-mode <mode>  Excel output: single (1 sheet) or multi (1 sheet per service). Default: single"
+            echo "                       Note: mode=all always generates 3 sheets (Inventory/Optimization/Security)"
             echo "  -s, --sum-ebs        Sum attached EBS volumes in EC2 report"
             echo "  -f, --filename       Custom output filename"
             echo "  -h, --help           Show this help"
@@ -115,10 +119,23 @@ log_start "📋 Run mode: ${RUN_MODE}"
 
 # --- Auto-Discovery (if enabled) ---
 if [[ "$AUTO_DISCOVER" == "true" ]]; then
+    # Reset ALL inventory config keys to 0 first (auto-discover will selectively enable)
+    # This prevents config.ini values from overriding auto-discovery
+    log_start "🔄 Auto-discover mode: resetting inventory config keys..."
+    for definition in "${REPORT_DEFINITIONS[@]}"; do
+        IFS='|' read -r config_key _ _ <<< "$definition"
+        # Only reset inventory keys (no prefix) — leave opt_ and sec_ alone
+        if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+            eval "export ${config_key}=0"
+        fi
+    done
+
     if auto_discover_services "$START_DATE" "$END_DATE"; then
         log_success "Using auto-discovered service configuration"
     else
-        log_start "⚠️ Service auto-discovery failed. Using config.ini settings."
+        log_start "⚠️ Service auto-discovery failed. Restoring config.ini settings."
+        # Re-source config.ini to restore original values
+        source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/\r//g' | sed 's/ *= */=/g')
     fi
 
     # Auto-discover regions (only if -r was NOT explicitly provided)
@@ -169,80 +186,113 @@ else
     log_success "No empty CSV files found."
 fi
 
-# --- Combine CSV to Excel (only if inventory mode is active) ---
-if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
-    log_start "✨ Combining CSV reports into a single Excel file..."
-    if python3 ./lib/python/combine_csv.py "${OUTPUT_DIR}"; then
+# --- Combine Reports to Excel ---
+# Logic:
+#   mode=all → 1 Excel file with 3 sheets: "Inventory", "Optimization", "Security"
+#              (each sheet contains all CSVs of that type combined)
+#   mode=single (inventory/optimize/security) → depends on EXCEL_MODE:
+#     EXCEL_MODE=single → all reports in 1 sheet (default, current behavior)
+#     EXCEL_MODE=multi  → 1 sheet per AWS service/report file
+
+if [[ "$RUN_MODE" == "all" ]]; then
+    # --- MODE=ALL: Generate 1 combined Excel with sheets per mode ---
+    log_start "✨ Generating combined Excel (1 sheet per mode)..."
+    if python3 ./lib/python/combine_csv.py "${OUTPUT_DIR}" --mode-sheets; then
         EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
         if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
             EXCEL_BASENAME=$(basename "$EXCEL_FILE")
-            log_success "CSV reports combined into Excel: ${EXCEL_FILE}"
+            log_success "Combined report: ${EXCEL_FILE}"
             cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
             log_success "${EXCEL_BASENAME} copied to current directory."
         else
             log_error "Excel file not found after combining."
         fi
     else
-        log_error "FAILED to combine CSV reports into Excel."
+        log_error "FAILED to combine reports into Excel."
     fi
-fi
 
-# --- Combine Optimization Reports to Excel (only if optimize mode is active) ---
-if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
-    OPT_ENABLED=0
-    for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_trusted_advisor opt_summary; do
-        raw_value="${!opt_key:-0}"
-        clean_value=$(echo "$raw_value" | tr -d '[:space:]')
-        if [[ "$clean_value" == "1" ]]; then
-            OPT_ENABLED=1
-            break
+else
+    # --- SINGLE MODE: Generate Excel based on EXCEL_MODE setting ---
+
+    # Inventory Excel
+    if [[ "$RUN_MODE" == *"inventory"* ]]; then
+        local_excel_flag=""
+        if [[ "$EXCEL_MODE" == "multi" ]]; then
+            local_excel_flag="--multi-sheet"
         fi
-    done
-
-    if [[ "$OPT_ENABLED" == "1" ]]; then
-        log_start "✨ Combining optimization reports into a single Excel file..."
-        if python3 ./lib/python/combine_optimization_excel.py "${OUTPUT_DIR}"; then
-            OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
-            if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
-                OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
-                log_success "Optimization reports combined into Excel: ${OPT_EXCEL_FILE}"
-                cp "$OPT_EXCEL_FILE" "./${OPT_EXCEL_BASENAME}"
-                log_success "${OPT_EXCEL_BASENAME} copied to current directory."
+        log_start "✨ Combining inventory reports into Excel (${EXCEL_MODE} sheet mode)..."
+        if python3 ./lib/python/combine_csv.py "${OUTPUT_DIR}" $local_excel_flag; then
+            EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "Combined_AWS_Reports_*.xlsx" 2>/dev/null | head -1)
+            if [[ -n "$EXCEL_FILE" && -f "$EXCEL_FILE" ]]; then
+                EXCEL_BASENAME=$(basename "$EXCEL_FILE")
+                log_success "Inventory Excel: ${EXCEL_FILE}"
+                cp "$EXCEL_FILE" "./${EXCEL_BASENAME}"
+                log_success "${EXCEL_BASENAME} copied to current directory."
             else
-                log_error "Optimization Excel file not found after combining."
+                log_error "Inventory Excel file not found."
             fi
         else
-            log_error "FAILED to combine optimization reports into Excel."
+            log_error "FAILED to combine inventory reports."
         fi
     fi
-fi
 
-# --- Combine Security Reports to Excel (only if security mode is active) ---
-if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"security"* ]]; then
-    SEC_ENABLED=0
-    for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
-        raw_value="${!sec_key:-0}"
-        clean_value=$(echo "$raw_value" | tr -d '[:space:]')
-        if [[ "$clean_value" == "1" ]]; then
-            SEC_ENABLED=1
-            break
-        fi
-    done
-
-    if [[ "$SEC_ENABLED" == "1" ]]; then
-        log_start "✨ Combining security reports into a single Excel file..."
-        if python3 ./lib/python/combine_security_excel.py "${OUTPUT_DIR}"; then
-            SEC_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Security_Report_*.xlsx" 2>/dev/null | head -1)
-            if [[ -n "$SEC_EXCEL_FILE" && -f "$SEC_EXCEL_FILE" ]]; then
-                SEC_EXCEL_BASENAME=$(basename "$SEC_EXCEL_FILE")
-                log_success "Security reports combined into Excel: ${SEC_EXCEL_FILE}"
-                cp "$SEC_EXCEL_FILE" "./${SEC_EXCEL_BASENAME}"
-                log_success "${SEC_EXCEL_BASENAME} copied to current directory."
-            else
-                log_error "Security Excel file not found after combining."
+    # Optimization Excel
+    if [[ "$RUN_MODE" == *"optimize"* ]]; then
+        OPT_ENABLED=0
+        for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_trusted_advisor opt_cost_trend opt_summary; do
+            raw_value="${!opt_key:-0}"
+            clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+            if [[ "$clean_value" == "1" ]]; then
+                OPT_ENABLED=1
+                break
             fi
-        else
-            log_error "FAILED to combine security reports into Excel."
+        done
+
+        if [[ "$OPT_ENABLED" == "1" ]]; then
+            log_start "✨ Combining optimization reports into Excel (multi-sheet)..."
+            if python3 ./lib/python/combine_optimization_excel.py "${OUTPUT_DIR}"; then
+                OPT_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Optimization_Report_*.xlsx" 2>/dev/null | head -1)
+                if [[ -n "$OPT_EXCEL_FILE" && -f "$OPT_EXCEL_FILE" ]]; then
+                    OPT_EXCEL_BASENAME=$(basename "$OPT_EXCEL_FILE")
+                    log_success "Optimization Excel: ${OPT_EXCEL_FILE}"
+                    cp "$OPT_EXCEL_FILE" "./${OPT_EXCEL_BASENAME}"
+                    log_success "${OPT_EXCEL_BASENAME} copied to current directory."
+                else
+                    log_error "Optimization Excel file not found."
+                fi
+            else
+                log_error "FAILED to combine optimization reports."
+            fi
+        fi
+    fi
+
+    # Security Excel
+    if [[ "$RUN_MODE" == *"security"* ]]; then
+        SEC_ENABLED=0
+        for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
+            raw_value="${!sec_key:-0}"
+            clean_value=$(echo "$raw_value" | tr -d '[:space:]')
+            if [[ "$clean_value" == "1" ]]; then
+                SEC_ENABLED=1
+                break
+            fi
+        done
+
+        if [[ "$SEC_ENABLED" == "1" ]]; then
+            log_start "✨ Combining security reports into Excel (multi-sheet)..."
+            if python3 ./lib/python/combine_security_excel.py "${OUTPUT_DIR}"; then
+                SEC_EXCEL_FILE=$(find "${OUTPUT_DIR}" -maxdepth 1 -name "AWS_Security_Report_*.xlsx" 2>/dev/null | head -1)
+                if [[ -n "$SEC_EXCEL_FILE" && -f "$SEC_EXCEL_FILE" ]]; then
+                    SEC_EXCEL_BASENAME=$(basename "$SEC_EXCEL_FILE")
+                    log_success "Security Excel: ${SEC_EXCEL_FILE}"
+                    cp "$SEC_EXCEL_FILE" "./${SEC_EXCEL_BASENAME}"
+                    log_success "${SEC_EXCEL_BASENAME} copied to current directory."
+                else
+                    log_error "Security Excel file not found."
+                fi
+            else
+                log_error "FAILED to combine security reports."
+            fi
         fi
     fi
 fi

@@ -89,6 +89,29 @@ def should_highlight_ebs(row_data, columns):
         return False
 
 
+def should_highlight_iam(row_data, columns):
+    """
+    IAM Report: highlight jika Access Key aktif DAN MFA tidak enabled.
+    Kondisi: (Key 1 Status == "Active" OR Key 2 Status == "Active") AND MFA Enabled == "No"
+    """
+    try:
+        mfa_idx = columns.index("MFA Enabled")
+        mfa_status = str(row_data[mfa_idx]).strip()
+
+        key1_status_idx = columns.index("Key 1 Status")
+        key1_status = str(row_data[key1_status_idx]).strip()
+
+        key2_status_idx = columns.index("Key 2 Status")
+        key2_status = str(row_data[key2_status_idx]).strip()
+
+        has_active_key = (key1_status == "Active" or key2_status == "Active")
+        no_mfa = (mfa_status == "No")
+
+        return has_active_key and no_mfa
+    except (ValueError, IndexError):
+        return False
+
+
 # =============================================================================
 # MAPPING: filename pattern -> highlight function
 # =============================================================================
@@ -100,6 +123,7 @@ HIGHLIGHT_RULES = {
     "aws_ec2_report": should_highlight_ec2,
     "aws_rds_report": should_highlight_rds,
     "ebs_report": should_highlight_ebs,
+    "iam_report": should_highlight_iam,
 }
 
 
