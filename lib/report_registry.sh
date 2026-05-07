@@ -155,10 +155,12 @@ build_task_list() {
             if [[ -n "$needed_args" ]]; then
                 # Check for per-service region override from .service_regions file
                 local service_regions_file="${OUTPUT_DIR:-}/.service_regions"
-                if [[ -f "$service_regions_file" ]] && echo "$needed_args" | grep -q "\-r"; then
+                local has_region_flag=false
+                echo "$needed_args" | grep -q "\-r" && has_region_flag=true || true
+                if [[ -f "$service_regions_file" ]] && [[ "$has_region_flag" == "true" ]]; then
                     # Look up this config key's specific regions
                     local key_regions
-                    key_regions=$(grep "^${config_key}=" "$service_regions_file" 2>/dev/null | cut -d'=' -f2)
+                    key_regions=$(grep "^${config_key}=" "$service_regions_file" 2>/dev/null | cut -d'=' -f2 || true)
                     if [[ -n "$key_regions" ]]; then
                         # Override -r in PASS_THROUGH_ARGS with per-service regions
                         local TEMP_PASS_THROUGH=()
