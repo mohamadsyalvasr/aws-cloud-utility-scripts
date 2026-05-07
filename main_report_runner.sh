@@ -119,78 +119,48 @@ log_start "📋 Run mode: ${RUN_MODE}"
 
 # --- Auto-Discovery (if enabled) ---
 if [[ "$AUTO_DISCOVER" == "true" ]]; then
-    # Auto-discover applies to inventory and optimization reports.
-    # For security-only mode, skip auto-discovery.
-    if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* || "$RUN_MODE" == *"optimize"* ]]; then
+    # Service auto-discovery: only for inventory mode (detects which services to report)
+    if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
         # Reset inventory keys to 0 (auto-discover will selectively enable)
-        if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
-            log_start "🔄 Auto-discover mode: resetting inventory config keys..."
-            for definition in "${REPORT_DEFINITIONS[@]}"; do
-                IFS='|' read -r config_key _ _ <<< "$definition"
-                if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
-                    eval "export ${config_key}=0"
-                fi
-            done
-        fi
-
-        # Reset optimization keys to 0 if mode includes optimize
-        if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
-            log_start "🔄 Auto-discover mode: resetting optimization config keys..."
-            for definition in "${REPORT_DEFINITIONS[@]}"; do
-                IFS='|' read -r config_key _ _ <<< "$definition"
-                if [[ "$config_key" == opt_* ]]; then
-                    eval "export ${config_key}=0"
-                fi
-            done
-        fi
+        log_start "🔄 Auto-discover mode: resetting inventory config keys..."
+        for definition in "${REPORT_DEFINITIONS[@]}"; do
+            IFS='|' read -r config_key _ _ <<< "$definition"
+            if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+                eval "export ${config_key}=0"
+            fi
+        done
 
         if auto_discover_services "$START_DATE" "$END_DATE"; then
             log_success "Using auto-discovered service configuration"
             # Re-source discovered keys to ensure they're set in this shell
             if [[ -n "${DISCOVERED_KEYS_FILE:-}" && -f "${DISCOVERED_KEYS_FILE:-}" ]]; then
                 source "$DISCOVERED_KEYS_FILE"
-                # Debug: show which opt_* keys are enabled
-                local opt_enabled_list=""
-                while IFS='=' read -r k v; do
-                    if [[ "$k" == opt_* && "$v" == "1" ]]; then
-                        opt_enabled_list="${opt_enabled_list} ${k}"
-                    fi
-                done < "$DISCOVERED_KEYS_FILE"
-                if [[ -n "$opt_enabled_list" ]]; then
-                    log_start "   Optimization reports enabled:${opt_enabled_list}"
-                fi
-            fi
-            # Always enable opt_summary and opt_cost_trend when optimize mode is active
-            if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
-                export opt_summary=1
-                export opt_cost_trend=1
             fi
         else
             log_start "⚠️ Service auto-discovery failed. Restoring config.ini settings."
             source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/\r//g' | sed 's/ *= */=/g')
         fi
+    fi
 
-        # Auto-discover regions (only if -r was NOT explicitly provided)
-        REGIONS_EXPLICITLY_SET=false
-        for arg in "${PASS_THROUGH_ARGS[@]}"; do
-            if [[ "$arg" == "-r" || "$arg" == "--regions" ]]; then
-                REGIONS_EXPLICITLY_SET=true
-                break
-            fi
-        done
+    # Region auto-discovery: for ALL modes that use regional scripts
+    # This helps scripts know which regions have resources without scanning all
+    REGIONS_EXPLICITLY_SET=false
+    for arg in "${PASS_THROUGH_ARGS[@]}"; do
+        if [[ "$arg" == "-r" || "$arg" == "--regions" ]]; then
+            REGIONS_EXPLICITLY_SET=true
+            break
+        fi
+    done
 
-        if [[ "$REGIONS_EXPLICITLY_SET" == "false" ]]; then
-            if auto_discover_regions "$START_DATE" "$END_DATE"; then
-                PASS_THROUGH_ARGS+=("-r" "$DISCOVERED_REGIONS")
-                log_success "Using auto-discovered regions: $DISCOVERED_REGIONS"
-            else
-                log_start "⚠️ Region auto-discovery failed. Using default regions."
-            fi
+    if [[ "$REGIONS_EXPLICITLY_SET" == "false" ]]; then
+        if auto_discover_regions "$START_DATE" "$END_DATE"; then
+            PASS_THROUGH_ARGS+=("-r" "$DISCOVERED_REGIONS")
+            log_success "Using auto-discovered regions: $DISCOVERED_REGIONS"
         else
-            log_start "   Regions explicitly set via -r flag, skipping region auto-discovery."
+            log_start "⚠️ Region auto-discovery failed. Using default regions."
         fi
     else
-        log_start "ℹ️  Auto-discover skipped (security-only mode). Using config.ini for sec_* reports."
+        log_start "   Regions explicitly set via -r flag, skipping region auto-discovery."
     fi
 fi
 
