@@ -348,8 +348,17 @@ send_notifications || true
 CURRENT_DIR=$(pwd)
 log_success "📂 Report Location: ${CURRENT_DIR}"
 log_success "📦 Zip Archive: ${CURRENT_DIR}/${ZIP_FILENAME}"
-if [[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]]; then
-    log_success "📋 Download Path: ${CURRENT_DIR}/${EXCEL_BASENAME}"
+
+# Show download path — prefer Excel files over zip
+DOWNLOAD_FILES=()
+[[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${EXCEL_BASENAME}")
+[[ -n "${OPT_EXCEL_BASENAME:-}" && -f "./${OPT_EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${OPT_EXCEL_BASENAME}")
+[[ -n "${SEC_EXCEL_BASENAME:-}" && -f "./${SEC_EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${SEC_EXCEL_BASENAME}")
+
+if [[ ${#DOWNLOAD_FILES[@]} -gt 0 ]]; then
+    for dl_file in "${DOWNLOAD_FILES[@]}"; do
+        log_success "📋 Download: ${CURRENT_DIR}/${dl_file}"
+    done
 else
     log_success "📋 Download Path: ${CURRENT_DIR}/${ZIP_FILENAME}"
 fi
