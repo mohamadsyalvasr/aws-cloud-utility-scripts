@@ -196,6 +196,22 @@ select_parallel() {
         3>&1 1>&2 2>&3) || PARALLEL="1"
 }
 
+select_debug_mode() {
+    if whiptail --title "$TITLE - Debug Mode" --yesno \
+"Enable debug mode?
+
+Debug mode shows detailed information about:
+  • Which config keys are enabled/disabled
+  • Which tasks are built and executed
+  • Region and service discovery details
+
+Useful for troubleshooting when reports don't run as expected." 14 65; then
+        DEBUG_FLAG="--debug"
+    else
+        DEBUG_FLAG=""
+    fi
+}
+
 select_excel_mode() {
     # Only show this for single-mode runs (not mode=all)
     if [[ "$MODE" == "all" ]]; then
@@ -214,29 +230,18 @@ Multi:  Each AWS service gets its own sheet (easier to navigate)" 14 70 3 \
 }
 
 select_report_method() {
-    # Auto-discover works for inventory and optimization modes
-    # For security-only mode, skip auto-discover option
-    if [[ "$MODE" == "security" ]]; then
-        REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
+    REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
 "How do you want to select reports?
 
-Note: Auto-discover is not available for security-only mode.
-Security reports must be selected manually." 13 65 2 \
-            "manual" "Select from checklist" ON \
-            "config" "Use config.ini as-is" OFF \
-            3>&1 1>&2 2>&3) || REPORT_METHOD="config"
-    else
-        REPORT_METHOD=$(whiptail --title "$TITLE - Report Selection" --radiolist \
-"How do you want to select reports?
+Auto-discover uses your billing data to:
+  • Inventory mode: detect which services are active
+  • All modes: detect which regions have resources
 
-Auto-discover uses your billing data to detect which
-AWS services are active and enables matching reports.
-(Works for inventory + optimization. Security uses checklist.)" 15 70 3 \
-            "auto" "Auto-discover from billing (recommended)" ON \
-            "manual" "Manual selection from checklist" OFF \
-            "config" "Use config.ini as-is" OFF \
-            3>&1 1>&2 2>&3) || REPORT_METHOD="config"
-    fi
+You still pick which opt/sec scripts to run manually." 16 70 3 \
+        "auto" "Auto-discover from billing (recommended)" ON \
+        "manual" "Manual selection (including regions)" OFF \
+        "config" "Use config.ini as-is" OFF \
+        3>&1 1>&2 2>&3) || REPORT_METHOD="config"
 }
 
 confirm_and_run() {
@@ -256,6 +261,11 @@ confirm_and_run() {
     # Add auto-discover flag if selected
     if [[ -n "${AUTO_DISCOVER_FLAG:-}" ]]; then
         CMD="$CMD $AUTO_DISCOVER_FLAG"
+    fi
+
+    # Add debug flag if selected
+    if [[ -n "${DEBUG_FLAG:-}" ]]; then
+        CMD="$CMD $DEBUG_FLAG"
     fi
 
     # Build config overrides summary
@@ -382,6 +392,7 @@ show_welcome
 select_mode
 input_date_range
 select_parallel
+select_debug_mode
 select_excel_mode
 select_report_method
 
@@ -403,22 +414,26 @@ fi
 
 # Show report selection based on mode and method
 if [[ "$REPORT_METHOD" == "auto" ]]; then
-    # Auto-discover handles inventory AND optimization automatically from billing.
-    # Security still needs manual selection (not discoverable from billing).
+    # Auto-discover:
+    #   - Inventory: services auto-detected from billing (no checklist needed)
+    #   - Optimize: user picks scripts, but regions auto-detected
+    #   - Security: user picks scripts manually
     case "$MODE" in
         optimize)
-            # Fully auto — optimization reports enabled based on billing services
+            # User picks which optimization reports to run; regions auto-detected
+            select_optimization_reports
             ;;
         security)
-            # Should not reach here (auto not available for security-only)
+            # User picks which security reports to run; regions auto-detected
             select_security_reports
             ;;
         optimize,security)
-            # Optimization auto-discovered, security needs checklist
+            select_optimization_reports
             select_security_reports
             ;;
         all)
-            # Inventory + optimization auto-discovered; security + compliance need checklist
+            # Inventory auto-discovered; user picks opt + sec + compliance
+            select_optimization_reports
             select_security_reports
             select_compliance_reports
             ;;

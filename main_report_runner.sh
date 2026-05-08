@@ -69,6 +69,7 @@ PASS_THROUGH_ARGS=()
 export RUN_MODE="all"
 AUTO_DISCOVER="${AUTO_DISCOVER:-false}"
 EXCEL_MODE="${EXCEL_MODE:-single}"
+DEBUG_MODE="${DEBUG_MODE:-false}"
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -r|--regions) PASS_THROUGH_ARGS+=("$1"); shift; PASS_THROUGH_ARGS+=("$1") ;;
@@ -79,6 +80,7 @@ while [[ "$#" -gt 0 ]]; do
         -m|--mode)    shift; RUN_MODE="$1" ;;
         -a|--auto-discover) AUTO_DISCOVER=true ;;
         --excel-mode) shift; EXCEL_MODE="$1" ;;
+        --debug) DEBUG_MODE=true ;;
         -h|--help)
             echo "Usage: $0 -b <start_date> -e <end_date> [-r regions] [-m mode] [-a] [-s] [-f filename]"
             echo ""
@@ -119,69 +121,85 @@ log_start "📋 Run mode: ${RUN_MODE}"
 
 # --- Auto-Discovery (if enabled) ---
 if [[ "$AUTO_DISCOVER" == "true" ]]; then
-    # Auto-discover applies to inventory and optimization reports.
-    # For security-only mode, skip auto-discovery.
-    if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* || "$RUN_MODE" == *"optimize"* ]]; then
+    # Service auto-discovery: only for inventory mode (detects which services to report)
+    if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
         # Reset inventory keys to 0 (auto-discover will selectively enable)
-        if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"inventory"* ]]; then
-            log_start "🔄 Auto-discover mode: resetting inventory config keys..."
-            for definition in "${REPORT_DEFINITIONS[@]}"; do
-                IFS='|' read -r config_key _ _ <<< "$definition"
-                if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
-                    eval "export ${config_key}=0"
-                fi
-            done
-        fi
-
-        # Reset optimization keys to 0 if mode includes optimize
-        if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
-            log_start "🔄 Auto-discover mode: resetting optimization config keys..."
-            for definition in "${REPORT_DEFINITIONS[@]}"; do
-                IFS='|' read -r config_key _ _ <<< "$definition"
-                if [[ "$config_key" == opt_* ]]; then
-                    eval "export ${config_key}=0"
-                fi
-            done
-        fi
+        log_start "🔄 Auto-discover mode: resetting inventory config keys..."
+        for definition in "${REPORT_DEFINITIONS[@]}"; do
+            IFS='|' read -r config_key _ _ <<< "$definition"
+            if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+                eval "export ${config_key}=0"
+            fi
+        done
 
         if auto_discover_services "$START_DATE" "$END_DATE"; then
             log_success "Using auto-discovered service configuration"
-            # Always enable opt_summary and opt_cost_trend when optimize mode is active
-            if [[ "$RUN_MODE" == "all" || "$RUN_MODE" == *"optimize"* ]]; then
-                export opt_summary=1
-                export opt_cost_trend=1
+            # Re-source discovered keys to ensure they're set in this shell
+            if [[ -n "${DISCOVERED_KEYS_FILE:-}" && -f "${DISCOVERED_KEYS_FILE:-}" ]]; then
+                source "$DISCOVERED_KEYS_FILE"
             fi
         else
             log_start "⚠️ Service auto-discovery failed. Restoring config.ini settings."
             source <(grep -v '^\s*[;#]' config.ini | grep -v '^\s*$' | grep '=' | sed 's/\r//g' | sed 's/ *= */=/g')
         fi
+    fi
 
-        # Auto-discover regions (only if -r was NOT explicitly provided)
-        REGIONS_EXPLICITLY_SET=false
-        for arg in "${PASS_THROUGH_ARGS[@]}"; do
-            if [[ "$arg" == "-r" || "$arg" == "--regions" ]]; then
-                REGIONS_EXPLICITLY_SET=true
-                break
-            fi
-        done
+    # Region auto-discovery: for ALL modes that use regional scripts
+    # This helps scripts know which regions have resources without scanning all
+    REGIONS_EXPLICITLY_SET=false
+    for arg in "${PASS_THROUGH_ARGS[@]}"; do
+        if [[ "$arg" == "-r" || "$arg" == "--regions" ]]; then
+            REGIONS_EXPLICITLY_SET=true
+            break
+        fi
+    done
 
-        if [[ "$REGIONS_EXPLICITLY_SET" == "false" ]]; then
-            if auto_discover_regions "$START_DATE" "$END_DATE"; then
-                PASS_THROUGH_ARGS+=("-r" "$DISCOVERED_REGIONS")
-                log_success "Using auto-discovered regions: $DISCOVERED_REGIONS"
-            else
-                log_start "⚠️ Region auto-discovery failed. Using default regions."
-            fi
+    if [[ "$REGIONS_EXPLICITLY_SET" == "false" ]]; then
+        if auto_discover_regions "$START_DATE" "$END_DATE"; then
+            PASS_THROUGH_ARGS+=("-r" "$DISCOVERED_REGIONS")
+            log_success "Using auto-discovered regions: $DISCOVERED_REGIONS"
         else
-            log_start "   Regions explicitly set via -r flag, skipping region auto-discovery."
+            log_start "⚠️ Region auto-discovery failed. Using default regions."
         fi
     else
-        log_start "ℹ️  Auto-discover skipped (security-only mode). Using config.ini for sec_* reports."
+        log_start "   Regions explicitly set via -r flag, skipping region auto-discovery."
     fi
 fi
 
 # --- Build & Run Tasks ---
 build_task_list
+
+# Debug: show what tasks were built
+if [[ "${DEBUG_MODE:-false}" == "true" ]] || [[ ${#TASKS[@]} -eq 0 ]]; then
+    log_start "🐛 DEBUG: build_task_list results:"
+    log_start "   RUN_MODE=$RUN_MODE"
+    log_start "   TASKS count=${#TASKS[@]}"
+    if [[ ${#TASKS[@]} -gt 0 ]]; then
+        for t in "${TASKS[@]}"; do
+            log_start "     → $t"
+        done
+    else
+        log_error "   ⚠️ NO TASKS BUILT! Possible causes:"
+        log_error "     - No reports enabled in config.ini for this mode"
+        log_error "     - Auto-discover didn't set any keys"
+        log_error "     - Mode filter excluded all reports"
+        log_start "   Checking opt_* keys:"
+        for opt_key in opt_ec2_rightsizing opt_rds_rightsizing opt_idle_resources opt_ebs_optimization opt_ri_sp_advisor opt_data_transfer opt_s3_storage opt_efs_storage opt_cost_trend opt_summary; do
+            log_start "     ${opt_key}=${!opt_key:-0}"
+        done
+        log_start "   Checking sec_* keys:"
+        for sec_key in sec_trusted_advisor sec_iam_audit sec_sg_audit sec_s3_audit sec_encryption_audit sec_network_audit sec_logging_audit sec_securityhub sec_summary; do
+            log_start "     ${sec_key}=${!sec_key:-0}"
+        done
+    fi
+fi
+
+if [[ ${#TASKS[@]} -eq 0 ]]; then
+    log_error "No reports to run. Enable reports in config.ini or select them in the launcher."
+    log_error "Exiting."
+    exit 0
+fi
+
 run_tasks "$PARALLEL_ENABLED" "$MAX_PARALLEL"
 
 # --- Summary ---
@@ -330,8 +348,17 @@ send_notifications || true
 CURRENT_DIR=$(pwd)
 log_success "📂 Report Location: ${CURRENT_DIR}"
 log_success "📦 Zip Archive: ${CURRENT_DIR}/${ZIP_FILENAME}"
-if [[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]]; then
-    log_success "📋 Download Path: ${CURRENT_DIR}/${EXCEL_BASENAME}"
+
+# Show download path — prefer Excel files over zip
+DOWNLOAD_FILES=()
+[[ -n "${EXCEL_BASENAME:-}" && -f "./${EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${EXCEL_BASENAME}")
+[[ -n "${OPT_EXCEL_BASENAME:-}" && -f "./${OPT_EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${OPT_EXCEL_BASENAME}")
+[[ -n "${SEC_EXCEL_BASENAME:-}" && -f "./${SEC_EXCEL_BASENAME}" ]] && DOWNLOAD_FILES+=("${SEC_EXCEL_BASENAME}")
+
+if [[ ${#DOWNLOAD_FILES[@]} -gt 0 ]]; then
+    for dl_file in "${DOWNLOAD_FILES[@]}"; do
+        log_success "📋 Download: ${CURRENT_DIR}/${dl_file}"
+    done
 else
     log_success "📋 Download Path: ${CURRENT_DIR}/${ZIP_FILENAME}"
 fi

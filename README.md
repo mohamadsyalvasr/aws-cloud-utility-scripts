@@ -107,8 +107,9 @@ Example output:
 
 **Notes:**
 - If you pass `-r` explicitly, region auto-discovery is skipped and your specified regions are used instead.
-- Auto-discovery works for **inventory** and **optimization** modes. For `--mode security`, reports must be selected manually.
-- Optimization mapping: EC2 in billing → enables `opt_ec2_rightsizing`, RDS → `opt_rds_rightsizing`, etc.
+- **Service discovery** (which reports to run) only applies to inventory mode.
+- **Region discovery** (which regions to scan) applies to ALL modes — inventory, optimize, and security.
+- For optimize/security modes, you still pick which scripts to run (via launcher or config.ini), but regions are auto-detected.
 - Services like Tax, CloudShell, and Amplify are recognized but intentionally skipped (no report needed).
 
 This helps you identify gaps — services you're paying for but don't have visibility into.

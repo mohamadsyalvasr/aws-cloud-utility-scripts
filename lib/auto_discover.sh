@@ -9,14 +9,14 @@
 # Pattern mapping: Cost Explorer service name keywords → config keys to enable
 # Multiple config keys can be enabled by one pattern (space-separated)
 declare -A SERVICE_PATTERNS=(
-    ["Elastic Compute Cloud"]="ec2 ebs_detailed opt_ec2_rightsizing opt_ri_sp_advisor opt_idle_resources"
-    ["EC2 - Other"]="ec2 ebs_detailed ebs_utilization natgateway opt_ebs_optimization opt_idle_resources"
-    ["EC2-Other"]="ec2 ebs_detailed ebs_utilization natgateway opt_ebs_optimization opt_idle_resources"
-    ["Elastic Block Store"]="ebs_detailed ebs_utilization opt_ebs_optimization"
-    ["Relational Database"]="rds opt_rds_rightsizing opt_idle_resources"
-    ["Simple Storage Service"]="s3 opt_s3_storage"
-    ["Lambda"]="lambda opt_idle_resources"
-    ["Elastic Load Balancing"]="elb opt_idle_resources"
+    ["Elastic Compute Cloud"]="ec2 ebs_detailed"
+    ["EC2 - Other"]="ec2 ebs_detailed ebs_utilization natgateway"
+    ["EC2-Other"]="ec2 ebs_detailed ebs_utilization natgateway"
+    ["Elastic Block Store"]="ebs_detailed ebs_utilization"
+    ["Relational Database"]="rds"
+    ["Simple Storage Service"]="s3"
+    ["Lambda"]="lambda"
+    ["Elastic Load Balancing"]="elb"
     ["Elastic Container Service"]="ecs"
     ["Elastic Kubernetes"]="eks"
     ["CloudFront"]="cloudfront"
@@ -29,7 +29,7 @@ declare -A SERVICE_PATTERNS=(
     ["Key Management Service"]="kms"
     ["Virtual Private Cloud"]="vpc vpn"
     ["VPC"]="vpc vpn natgateway transitgateway"
-    ["Elastic File System"]="efs opt_efs_storage"
+    ["Elastic File System"]="efs"
     ["SageMaker"]="sagemaker"
     ["Bedrock"]="bedrock"
     ["Lightsail"]="lightsail"
@@ -61,8 +61,8 @@ declare -A SERVICE_PATTERNS=(
     ["Transfer"]="transfer_family"
     ["Container Registry"]="ecr"
     ["Simple Email Service"]="ses"
-    ["Data Transfer"]="data_transfer opt_data_transfer"
-    ["NAT Gateway"]="natgateway opt_data_transfer"
+    ["Data Transfer"]="data_transfer"
+    ["NAT Gateway"]="natgateway"
     ["Transit Gateway"]="transitgateway"
     ["IAM"]="iam"
     ["Savings Plans"]="sp"
@@ -136,6 +136,9 @@ auto_discover_services() {
     local enabled_keys=()
     # Track services that have no matching pattern (unmapped)
     local unmapped_services=()
+    # File to store key=value pairs for sourcing after function returns
+    local keys_file="${OUTPUT_DIR}/.discovered_keys"
+    : > "$keys_file"  # Create/truncate
 
     # Match each billing service against patterns
     while IFS= read -r service_name; do
@@ -152,8 +155,7 @@ auto_discover_services() {
                     continue
                 fi
                 for key in $keys; do
-                    # Set the variable (export so it's available to build_task_list)
-                    eval "export ${key}=1"
+                    echo "${key}=1" >> "$keys_file"
                     enabled_keys+=("$key")
                 done
             fi
@@ -164,6 +166,17 @@ auto_discover_services() {
             unmapped_services+=("$service_name")
         fi
     done <<< "$services"
+
+    # Source the discovered keys file to set variables in the calling shell
+    if [[ -s "$keys_file" ]]; then
+        # Deduplicate and source
+        sort -u "$keys_file" > "${keys_file}.tmp" && mv "${keys_file}.tmp" "$keys_file"
+        source "$keys_file"
+        # Also export them
+        while IFS='=' read -r k v; do
+            export "$k=$v"
+        done < "$keys_file"
+    fi
 
     # Deduplicate and report
     local unique_keys
@@ -193,6 +206,9 @@ auto_discover_services() {
 
     # Always enable IAM (global, always relevant)
     export iam=1
+
+    # Export the keys file path so main_report_runner can re-source if needed
+    export DISCOVERED_KEYS_FILE="$keys_file"
 
     return 0
 }
