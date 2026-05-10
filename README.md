@@ -1,245 +1,296 @@
 # AWS Cloud Utility Scripts
 
-A comprehensive toolkit for AWS infrastructure **inventory reporting**, **cost optimization**, and **security auditing**. Run from AWS CloudShell or any environment with AWS CLI configured.
+A toolkit for AWS infrastructure **inventory reporting**, **cost optimization**, and **security auditing**. Runs on AWS CloudShell or any environment with AWS CLI configured.
 
-## Prerequisites
-
-- **AWS CLI v2** — pre-installed on CloudShell
-- **jq** — JSON processor
-- **bc** — calculator
-- **python3** + `pandas` + `xlsxwriter`
-- **zip** — for archiving
-
-## Features
-
-| Mode | Description | Flag |
-|------|-------------|------|
-| **Inventory** | Generate detailed CSV/Excel reports for 60+ AWS services | `--mode inventory` |
-| **Optimize** | Analyze resource utilization and recommend cost savings | `--mode optimize` |
-| **Security** | Audit security configurations and compliance | `--mode security` |
-
-All modes can be combined: `--mode optimize,security`
+---
 
 ## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/mohamadsyalvasr/aws-cloud-utility-scripts
 cd aws-cloud-utility-scripts
-
-# Option 1: Interactive TUI (recommended for first-time users)
-chmod +x launcher.sh
-./launcher.sh
-
-# Option 2: CLI with flags
-chmod +x main_report_runner.sh
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
-
-# Auto-discover: only report services that appear in your billing
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 --auto-discover
-
-# Run only optimization reports
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m optimize
-
-# Run optimization + security
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m optimize,security
+chmod +x main_report_runner.sh launcher.sh
 ```
+
+**Easiest way** — use the interactive launcher:
+
+```bash
+./launcher.sh
+```
+
+Or run directly via CLI:
+
+```bash
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+```
+
+---
+
+## What It Does
+
+| Mode | Purpose | Usage |
+|------|---------|-------|
+| **Inventory** | Collect detailed data from 60+ AWS services into CSV/Excel | `./main_report_runner.sh -b ... -e ...` |
+| **Optimize** | Analyze utilization and recommend cost savings | `-m optimize` |
+| **Security** | Audit security configurations and compliance | `-m security` |
+| **All** | Run all modes at once | `-m all` |
+
+Modes can be combined: `-m optimize,security`
+
+---
+
+## Prerequisites
+
+| Tool | Notes |
+|------|-------|
+| AWS CLI v2 | Pre-installed on CloudShell |
+| jq | JSON processor |
+| bc | Calculator |
+| python3 + pandas + xlsxwriter | For Excel generation |
+| zip | For archiving output |
+
+Install Python dependencies (if not already available):
+
+```bash
+pip3 install pandas xlsxwriter
+```
+
+**Optional:**
+- **Bedrock Model Invocation Logging** — enable in Bedrock Console for per-user token usage data
+- **QuickSight subscription** — required for user inventory report
+
+---
 
 ## Command-Line Options
 
 | Option | Description |
 |--------|-------------|
-| `-b <date>` | **Required.** Start date (YYYY-MM-DD) |
-| `-e <date>` | **Required.** End date (YYYY-MM-DD) |
-| `-r <regions>` | Comma-separated regions. Default: `ap-southeast-1,ap-southeast-3` |
-| `-m <mode>` | Run mode: `all`, `inventory`, `optimize`, `security` (comma-separated) |
-| `-a, --auto-discover` | Auto-enable reports based on billing data (requires Cost Explorer access) |
-| `--excel-mode <mode>` | Excel output: `single` (1 sheet) or `multi` (1 sheet per service). Default: `single` |
-| `-s` | Sum attached EBS volumes in EC2 report |
-| `-f <filename>` | Custom output filename |
+| `-b <YYYY-MM-DD>` | **Required.** Start date |
+| `-e <YYYY-MM-DD>` | **Required.** End date |
+| `-r <regions>` | Comma-separated regions to scan. Default: `ap-southeast-1,ap-southeast-3` |
+| `-m <mode>` | Run mode: `inventory`, `optimize`, `security`, `all` |
+| `-a` / `--auto-discover` | Auto-detect active services from billing data |
+| `--excel-mode <mode>` | `single` (1 sheet) or `multi` (1 sheet per service) |
+| `-s` | Sum all attached EBS volumes in EC2 report |
 | `-h` | Show help |
 
-### Excel Output Modes
+---
 
-| Run Mode | Excel Behavior |
-|----------|---------------|
-| `--mode all` | **Automatic**: 1 file with 3 sheets — Inventory, Optimization, Security |
-| `--mode inventory` | Default: 1 sheet. With `--excel-mode multi`: 1 sheet per AWS service |
-| `--mode optimize` | Always multi-sheet (1 sheet per optimization category) |
-| `--mode security` | Always multi-sheet (1 sheet per security category) |
+## Auto-Discovery
 
-```bash
-# Mode all → 3 sheets grouped by type
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
-
-# Inventory with 1 sheet per service
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m inventory --excel-mode multi
-```
-
-### Auto-Discovery Mode
-
-When using `--auto-discover`, the tool queries Cost Explorer to automatically detect:
-1. **Which services** are active (have non-zero cost) → enables only those reports
-2. **Which regions** have resources (have non-zero cost) → scans only those regions
+With `--auto-discover`, the tool automatically:
+1. Queries Cost Explorer to find which services have non-zero cost → enables only those reports
+2. Detects which regions are active → scans only those regions
 
 ```bash
-# Full auto: services + regions detected from billing
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 --auto-discover
-
-# Auto services, but override regions manually
-./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -r us-east-1,eu-west-1
 ```
 
-Example output:
-```
-[10:30:01] 🔍 Auto-discovering active services from billing data...
-[10:30:03] ✅ Auto-discovery complete: 12 report(s) enabled
-[10:30:03]    Enabled: acm cloudwatch ec2 ebs_detailed elb iam lambda rds s3 sns sqs vpc
-[10:30:03]
-[10:30:03]    ⚠️  Services found in billing but NO report script available:
-[10:30:03]      • AWS Support (Business)
-[10:30:03]      • Tax
-[10:30:03]
-[10:30:03] 🌍 Auto-discovering active regions from billing data...
-[10:30:04] ✅ Region discovery complete: 3 region(s) found
-[10:30:04]    Regions: ap-southeast-1,ap-southeast-3,us-east-1
-```
+No need to manually toggle services in config.ini — the tool figures out what you're using.
 
-**Notes:**
-- If you pass `-r` explicitly, region auto-discovery is skipped and your specified regions are used instead.
-- **Service discovery** (which reports to run) only applies to inventory mode.
-- **Region discovery** (which regions to scan) applies to ALL modes — inventory, optimize, and security.
-- For optimize/security modes, you still pick which scripts to run (via launcher or config.ini), but regions are auto-detected.
-- Services like Tax, CloudShell, and Amplify are recognized but intentionally skipped (no report needed).
+---
 
-This helps you identify gaps — services you're paying for but don't have visibility into.
+## Output
 
-## Interactive Launcher (TUI)
-
-For users who prefer a guided experience, use the interactive launcher:
-
-```bash
-./launcher.sh
-```
-
-The launcher uses `whiptail` (pre-installed on AWS CloudShell and most Linux distros) to provide a terminal GUI with:
-
-1. **Welcome screen** — overview of what the tool does
-2. **Mode selection** — radio buttons for inventory/optimize/security/all
-3. **Report selection method** — auto-discover from billing, manual checklist, or use config.ini
-4. **Date range input** — start and end dates with defaults (last 30 days)
-5. **Region input** — comma-separated regions
-6. **Execution mode** — parallel or sequential
-7. **Report checklist** — checkboxes to toggle individual reports (if manual mode)
-8. **Confirmation** — review settings and execute
+After completion, output is located at:
 
 ```
-┌─────────── Report Selection Method ─────────────┐
-│                                                  │
-│  (*) Auto-discover from billing (recommended)    │
-│  ( ) Manual selection from checklist             │
-│  ( ) Use config.ini as-is                        │
-│                                                  │
-│           <OK>        <Cancel>                   │
-└──────────────────────────────────────────────────┘
+export/aws-cloud-report-YYYY-MM-DD/
+├── *.csv                                    # Individual CSV per service
+├── Combined_AWS_Reports_<Account>.xlsx      # Inventory Excel
+├── AWS_Optimization_Report_<Account>.xlsx   # Optimization Excel (multi-sheet)
+└── AWS_Security_Report_<Account>.xlsx       # Security Excel (multi-sheet)
+
+aws_reports_YYYY-MM-DD.zip                   # Everything zipped for download
 ```
 
-**Prerequisite:** `whiptail` — if not available, the script shows install instructions and suggests using the CLI directly.
+Excel filenames automatically include Account Name/ID for easy identification across multiple accounts.
+
+---
 
 ## Configuration
 
 Edit `config.ini` to enable/disable individual reports:
 
 ```ini
-# Inventory reports (no prefix)
+; Inventory (no prefix)
 ec2=1
 rds=1
 s3=1
+lambda=0
 
-# Optimization reports (opt_ prefix)
+; Optimization (opt_ prefix)
 opt_ec2_rightsizing=1
 opt_idle_resources=1
-opt_s3_storage=1
-opt_summary=1
 
-# Security reports (sec_ prefix)
-sec_trusted_advisor=1
+; Security (sec_ prefix)
 sec_iam_audit=1
 sec_sg_audit=1
-sec_encryption_audit=1
-sec_summary=1
 
-# Parallel execution
+; Parallel execution
 parallel=1
 max_parallel=2
 ```
 
-## Output
+Set `=1` to enable, `=0` to disable.
 
-```
-export/aws-cloud-report-2025-08-31/
-├── *.csv                                          # Individual report CSVs
-├── Combined_AWS_Reports_<Account>.xlsx            # Inventory Excel (all reports in one sheet)
-├── AWS_Optimization_Report_<Account>.xlsx         # Optimization Excel (multi-sheet)
-└── AWS_Security_Report_<Account>.xlsx             # Security Excel (multi-sheet, severity color-coded)
+---
 
-aws_reports_2025-08-31.zip                         # Everything zipped
-```
+## Inventory Reports (60+ Services)
+
+<details>
+<summary>Click to expand full list</summary>
+
+| Service | Script | Data Collected |
+|---------|--------|----------------|
+| ACM | `acm_report.sh` | Certificates (domain, status, expiry) |
+| API Gateway | `apigateway_report.sh` | REST/HTTP/WebSocket APIs |
+| App Runner | `apprunner_report.sh` | Services |
+| ASG | `asg_report.sh` | Auto Scaling Groups |
+| Backup | `backup_report.sh` | Vaults + Plans |
+| Bedrock | `bedrock_report.sh` | Models & endpoints |
+| Bedrock Usage | `bedrock_usage_report.sh` | Token usage per user + cost |
+| Billing | `aws_billing_report.sh` | Cost per service |
+| CloudFront | `cloudfront_report.sh` | Distributions |
+| CloudWatch | `cloudwatch_report.sh` | Alarms + Log Groups |
+| CodePipeline | `codepipeline_report.sh` | CI/CD Pipelines |
+| Cognito | `cognito_report.sh` | User Pools |
+| Config | `config_report.sh` | Compliance rules |
+| Data Transfer | `data_transfer_report.sh` | Network cost + bytes per instance |
+| Direct Connect | `directconnect_report.sh` | Connections |
+| DocumentDB | `documentdb_report.sh` | Clusters |
+| DynamoDB | `dynamodb_report.sh` | Tables |
+| EBS | `ebs_report.sh` | Volumes (type, size, IOPS) |
+| EBS Utilization | `ebs_utilization_report.sh` | Read/write bytes, disk used % |
+| EC2 | `aws_ec2_report.sh` | Instances + CPU/Memory metrics |
+| ECR | `ecr_report.sh` | Container repositories |
+| ECS | `ecs_report.sh` | Clusters + tasks |
+| EFS | `efs_report.sh` | File systems (size in GiB) |
+| EKS | `eks_report.sh` | Kubernetes clusters |
+| ElastiCache | `elasticache_report.sh` | Cache clusters |
+| ELB | `elb_report.sh` | Load Balancers (ALB/NLB/GWLB) |
+| EventBridge | `eventbridge_report.sh` | Rules + targets |
+| Glue | `glue_report.sh` | Jobs + Crawlers + Databases |
+| Grafana | `grafana_report.sh` | Managed Grafana workspaces |
+| IAM | `iam_report.sh` | Users |
+| Kinesis | `kinesis_report.sh` | Data streams |
+| KMS | `kms_report.sh` | Encryption keys |
+| Lambda | `lambda_report.sh` | Functions |
+| Lightsail | `lightsail_report.sh` | Instances |
+| MQ | `mq_report.sh` | Message brokers |
+| MSK | `msk_report.sh` | Kafka clusters |
+| NAT Gateway | `natgateway_report.sh` | NAT Gateways |
+| Neptune | `neptune_report.sh` | Graph DB clusters |
+| OpenSearch | `opensearch_report.sh` | Search domains |
+| QuickSight | `quicksight_usage_report.sh` | Users + cost |
+| RDS | `aws_rds_report.sh` | DB instances + metrics |
+| Redshift | `redshift_report.sh` | Data warehouse clusters |
+| Reserved Instances | `aws_ri_report.sh` | RI inventory |
+| Route 53 | `route53_report.sh` | Hosted zones |
+| S3 | `s3_report.sh` | Buckets (size, objects) |
+| SageMaker | `sagemaker_report.sh` | ML endpoints |
+| Savings Plans | `aws_sp_report.sh` | SP inventory |
+| Secrets Manager | `secrets_manager_report.sh` | Secrets |
+| SES | `ses_report.sh` | Email identities |
+| SNS | `sns_report.sh` | Topics + subscriptions |
+| SQS | `sqs_report.sh` | Queues |
+| SSM Parameters | `ssm_params_report.sh` | Parameter Store |
+| Step Functions | `stepfunctions_report.sh` | State machines |
+| Transfer Family | `transfer_family_report.sh` | SFTP/FTP servers |
+| Transit Gateway | `transitgateway_report.sh` | TGW + attachments |
+| VPC | `vpc_report.sh` | VPCs, subnets, IGW, NAT, SG, EIP |
+| VPN | `vpn_report.sh` | Site-to-Site VPN |
+| WAF | `waf_report.sh` | Web ACLs + request counts |
+| WorkSpaces | `aws_workspaces_report.sh` | Virtual desktops |
+
+</details>
+
+---
 
 ## Additional Features
 
-| Feature | Description | Script/Config |
-|---------|-------------|---------------|
-| **Tagging Compliance** | Check resources for mandatory tags (configurable via `MANDATORY_TAGS` env var) | `tagging_compliance=1` |
-| **Resource Lifecycle** | Identify stale AMIs, deprecated runtimes, outdated EKS versions | `resource_lifecycle=1` |
-| **Cost Trend Analysis** | Compare costs between periods, highlight services with >20% increase | `opt_cost_trend=1` |
-| **Multi-Account** | Run reports across multiple AWS accounts via cross-account roles | `./multi_account_runner.sh` |
-| **Compliance Scorecard** | Executive summary with Health Score (0-100) aggregating all reports | `scorecard=1` |
-| **Delta Report** | Compare current run vs baseline — detect NEW/REMOVED/CHANGED resources | `delta_report=1` |
-| **Notifications** | Send summary to Slack, Teams, or Email (SNS) after reports complete | `NOTIFY_SLACK=1` env var |
+| Feature | Description |
+|---------|-------------|
+| **Tagging Compliance** | Check resources for mandatory tags |
+| **Resource Lifecycle** | Identify stale AMIs, deprecated runtimes, outdated EKS versions |
+| **Cost Trend** | Compare costs between periods, highlight >20% increases |
+| **Delta Report** | Compare current run vs previous — detect new/removed/changed resources |
+| **Scorecard** | Executive summary with Health Score (0-100) |
+| **Multi-Account** | Run reports across multiple AWS accounts via cross-account roles |
+| **Notifications** | Send summary to Slack, Teams, or Email (SNS) |
 
-## Documentation
+---
 
-Detailed documentation is available in the [`docs/`](docs/) folder:
+## Multi-Account
 
-| Document | Description |
-|----------|-------------|
-| [Inventory Reports](docs/inventory-reports.md) | Full list of 60+ inventory scripts with columns and details |
-| [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, pricing data, recommendations |
-| [Security Audit](docs/security-audit.md) | How security auditing works, Trusted Advisor integration, severity levels |
-| [Multi-Account Setup](docs/multi-account-setup.md) | Prerequisites for cross-account reporting (IAM roles, trust policies) |
-| [Configuration Guide](docs/configuration.md) | All config.ini options, environment variables, and modes |
-| [Adding New Reports](docs/adding-reports.md) | How to add your own report scripts to the framework |
+To run reports across multiple accounts:
+
+```bash
+# Edit account list
+vim accounts.conf
+
+# Run
+./multi_account_runner.sh -b 2025-08-01 -e 2025-08-31
+```
+
+Details: [docs/multi-account-setup.md](docs/multi-account-setup.md)
+
+---
+
+## Adding a New Report
+
+Two steps:
+
+1. Create a script in `script/inventory/` (follow existing pattern)
+2. Add one line to `lib/report_registry.sh`:
+   ```bash
+   "config_key|./script/inventory/my_report.sh|-r"
+   ```
+
+Details: [docs/adding-reports.md](docs/adding-reports.md)
+
+---
 
 ## Project Structure
 
 ```
 .
-├── main_report_runner.sh               # Main orchestrator (CLI)
-├── launcher.sh                         # Interactive TUI launcher (whiptail)
-├── multi_account_runner.sh             # Multi-account wrapper (standalone)
-├── accounts.conf                       # Multi-account target list
-├── config.ini                          # Report toggles
-├── lib/                                # Shared libraries
-│   ├── python/                        #   Python Excel combiners
-│   │   ├── combine_csv.py            #     Inventory → Excel
-│   │   ├── combine_optimization_excel.py  #  Optimization → multi-sheet Excel
-│   │   ├── combine_security_excel.py #     Security → multi-sheet Excel
-│   │   └── excel_styles.py           #     Shared Excel formatting
-│   ├── logger.sh                      #   Logging
-│   ├── task_runner.sh                 #   Sequential/parallel execution
-│   ├── report_registry.sh            #   Report definitions & mode filtering
-│   ├── pricing_helper.sh             #   AWS Pricing API + cache
-│   ├── pricing_fallback.json          #   Offline pricing reference
-│   └── notifier.sh                    #   Slack/Teams/SNS notifications
+├── main_report_runner.sh          # Main orchestrator (CLI)
+├── launcher.sh                    # Interactive launcher (TUI)
+├── multi_account_runner.sh        # Multi-account wrapper
+├── accounts.conf                  # Target account list
+├── config.ini                     # Report toggles
+├── lib/
+│   ├── logger.sh                 # Logging
+│   ├── task_runner.sh            # Execution engine
+│   ├── report_registry.sh       # Report definitions registry
+│   ├── auto_discover.sh         # Auto-discovery from billing
+│   ├── pricing_helper.sh        # AWS Pricing API
+│   ├── notifier.sh              # Slack/Teams/SNS notifications
+│   └── python/                   # Excel generators
 ├── script/
-│   ├── inventory/                      # Inventory reports (60+ scripts)
-│   ├── optimization/                   # Cost optimization reports
-│   ├── security/                       # Security audit reports
-│   └── compliance/                     # Compliance & governance reports
-├── docs/                               # Documentation
-└── web/                                # Web UI (optional)
+│   ├── inventory/                # 60+ inventory scripts
+│   ├── optimization/             # Cost optimization scripts
+│   ├── security/                 # Security audit scripts
+│   └── compliance/               # Compliance & governance
+├── docs/                          # Full documentation
+└── web/                           # Web UI (optional)
 ```
+
+---
+
+## Documentation
+
+| Document | Contents |
+|----------|----------|
+| [Inventory Reports](docs/inventory-reports.md) | All 60+ report scripts with column details |
+| [Price Optimization](docs/price-optimization.md) | How optimization works, thresholds, recommendations |
+| [Security Audit](docs/security-audit.md) | Security auditing, severity levels |
+| [Multi-Account Setup](docs/multi-account-setup.md) | Cross-account role setup |
+| [Configuration Guide](docs/configuration.md) | All config.ini options and environment variables |
+| [Adding New Reports](docs/adding-reports.md) | How to add your own report scripts |
+
+---
 
 ## License
 
