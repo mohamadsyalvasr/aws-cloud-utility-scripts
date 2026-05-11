@@ -56,12 +56,13 @@ select_mode() {
     MODE=$(whiptail --title "$TITLE - Run Mode" --radiolist \
 "Select the run mode:
 
-Use SPACE to select, ENTER to confirm." 15 60 5 \
+Use SPACE to select, ENTER to confirm." 18 60 6 \
         "all" "Run all enabled reports" ON \
         "inventory" "Inventory reports only" OFF \
         "optimize" "Cost optimization only" OFF \
         "security" "Security audit only" OFF \
         "optimize,security" "Optimization + Security" OFF \
+        "discovery" "Architecture Discovery (generate diagrams)" OFF \
         3>&1 1>&2 2>&3) || exit 0
 }
 
@@ -112,6 +113,70 @@ Use SPACE to toggle, ENTER to confirm." 16 70 6 \
         "delta_report" "Delta Report (compare vs previous baseline)" OFF \
         "scorecard" "Executive Scorecard (Health Score, runs LAST)" OFF \
         3>&1 1>&2 2>&3) || COMPLIANCE_SELECTION=""
+}
+
+select_discovery_scripts() {
+    DISCOVERY_SELECTION=$(whiptail --title "$TITLE - Architecture Discovery" --checklist \
+"Select which architecture diagrams to generate:
+
+These scripts discover relationships between AWS resources
+and output Mermaid diagrams (.md files).
+
+Use SPACE to toggle, ENTER to confirm." 18 75 4 \
+        "vpc" "VPC Topology (EC2, RDS, ELB, NAT, Subnets, SG)" ON \
+        "serverless" "Serverless Topology (Lambda, API GW, SQS, SNS, DDB)" ON \
+        "edge" "Edge/CDN Topology (Route 53, CloudFront, Origins)" ON \
+        3>&1 1>&2 2>&3) || DISCOVERY_SELECTION=""
+}
+
+run_discovery() {
+    # Execute discovery scripts directly (not through main_report_runner.sh)
+    local region_flag=""
+    if [[ "$REGIONS" != "auto-detected" && -n "$REGIONS" ]]; then
+        region_flag="-r $REGIONS"
+    fi
+
+    # Setup output dir
+    local YEAR=$(date +"%Y")
+    local MONTH=$(date +"%m")
+    local DAY=$(date +"%d")
+    export OUTPUT_DIR="export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}"
+    mkdir -p "$OUTPUT_DIR"
+
+    chmod +x script/discovery/*.sh 2>/dev/null || true
+
+    echo ""
+    echo "🔍 Running Architecture Discovery..."
+    echo "   Output: $OUTPUT_DIR/"
+    echo ""
+
+    for selection in $(echo "$DISCOVERY_SELECTION" | tr -d '"'); do
+        case "$selection" in
+            vpc)
+                echo "📐 Discovering VPC topology..."
+                ./script/discovery/vpc_topology.sh $region_flag
+                ;;
+            serverless)
+                echo "⚡ Discovering serverless topology..."
+                ./script/discovery/serverless_topology.sh $region_flag
+                ;;
+            edge)
+                echo "☁️  Discovering edge/CDN topology..."
+                ./script/discovery/edge_topology.sh
+                ;;
+        esac
+    done
+
+    echo ""
+    echo "✅ Architecture discovery complete!"
+    echo "   Diagrams saved to: $OUTPUT_DIR/"
+    echo ""
+    echo "   Files generated:"
+    ls -1 "$OUTPUT_DIR"/architecture_*.md 2>/dev/null | while read -r f; do
+        echo "     • $(basename "$f")"
+    done
+    echo ""
+    echo "   View in GitHub, VS Code (Mermaid extension), or paste into mermaid.live"
 }
 
 select_optimization_reports() {
@@ -390,6 +455,34 @@ fi
 # Run the interactive flow
 show_welcome
 select_mode
+
+# Discovery mode has its own flow (no date range needed)
+if [[ "$MODE" == "discovery" ]]; then
+    input_regions
+    select_discovery_scripts
+
+    if [[ -z "$DISCOVERY_SELECTION" ]]; then
+        whiptail --title "$TITLE" --msgbox "No discovery scripts selected. Exiting." 8 50
+        exit 0
+    fi
+
+    if whiptail --title "$TITLE - Confirm Discovery" --yesno \
+"Ready to run Architecture Discovery:
+
+Regions:  $REGIONS
+Scripts:  $(echo $DISCOVERY_SELECTION | tr -d '"' | tr ' ' ', ')
+
+This will query your AWS infrastructure and generate
+Mermaid architecture diagrams.
+
+Proceed?" 16 65; then
+        run_discovery
+    else
+        whiptail --title "$TITLE" --msgbox "Cancelled." 8 40
+    fi
+    exit 0
+fi
+
 input_date_range
 select_parallel
 select_debug_mode
