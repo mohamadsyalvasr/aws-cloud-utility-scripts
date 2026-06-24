@@ -31,7 +31,7 @@ declare -A SERVICE_PATTERNS=(
     ["VPC"]="vpc vpn natgateway transitgateway"
     ["Elastic File System"]="efs"
     ["SageMaker"]="sagemaker"
-    ["Bedrock"]="bedrock"
+    ["Bedrock"]="bedrock bedrock_usage bedrock_token_usage"
     ["Lightsail"]="lightsail"
     ["WorkSpaces"]="workspaces"
     ["CloudWatch"]="cloudwatch"
@@ -74,7 +74,7 @@ declare -A SERVICE_PATTERNS=(
     ["Amplify"]="SKIP"
     ["CloudShell"]="SKIP"
     ["DataSync"]="SKIP"
-    ["QuickSight"]="SKIP"
+    ["QuickSight"]="quicksight_usage"
     ["Tax"]="SKIP"
 )
 

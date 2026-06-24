@@ -176,14 +176,6 @@ run_discovery() {
 run_usage() {
     # Execute usage report scripts directly with chart generation support
     local region_flag=""
-    if [[ "$REGIONS" != "auto-detected" && -n "$REGIONS" ]]; then
-        region_flag="-r $REGIONS"
-    fi
-
-    local chart_flag=""
-    if [[ "${GENERATE_USAGE_CHARTS:-false}" == "true" ]]; then
-        chart_flag="-g"
-    fi
 
     # Setup output dir
     local YEAR=$(date +"%Y")
@@ -191,6 +183,98 @@ run_usage() {
     local DAY=$(date +"%d")
     export OUTPUT_DIR="export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}"
     mkdir -p "$OUTPUT_DIR"
+
+    # --- Install Prerequisites ---
+    echo ""
+    echo "🔧 Checking prerequisites..."
+
+    # Check and install system dependencies (jq, bc)
+    local missing_deps=()
+    command -v jq &>/dev/null || missing_deps+=("jq")
+    command -v bc &>/dev/null || missing_deps+=("bc")
+
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        echo "   Installing system dependencies: ${missing_deps[*]}..."
+        if command -v yum &>/dev/null; then
+            sudo yum install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v apt-get &>/dev/null; then
+            sudo apt-get install -y "${missing_deps[@]}" >/dev/null 2>&1
+        elif command -v apk &>/dev/null; then
+            sudo apk add "${missing_deps[@]}" >/dev/null 2>&1
+        else
+            echo "   ⚠️  Cannot auto-install ${missing_deps[*]}. Please install manually."
+        fi
+    fi
+
+    # Check Python dependencies if charts are requested
+    if [[ "${GENERATE_USAGE_CHARTS:-false}" == "true" ]]; then
+        if ! command -v python3 &>/dev/null; then
+            echo "   ⚠️  python3 not found. Installing..."
+            if command -v yum &>/dev/null; then
+                sudo yum install -y python3 python3-pip >/dev/null 2>&1
+            elif command -v apt-get &>/dev/null; then
+                sudo apt-get install -y python3 python3-pip >/dev/null 2>&1
+            else
+                echo "   ❌ Cannot auto-install python3. Please install manually."
+                echo "      Charts will be skipped."
+                GENERATE_USAGE_CHARTS=false
+            fi
+        fi
+
+        if [[ "${GENERATE_USAGE_CHARTS:-false}" == "true" ]]; then
+            # Check and install Python packages
+            local py_missing=false
+            python3 -c "import matplotlib, pandas, openpyxl" 2>/dev/null || py_missing=true
+
+            if [[ "$py_missing" == "true" ]]; then
+                echo "   Installing Python packages (matplotlib, pandas, openpyxl)..."
+                if pip3 install matplotlib pandas openpyxl >/dev/null 2>&1; then
+                    echo "   ✅ Python packages installed."
+                elif sudo pip3 install matplotlib pandas openpyxl >/dev/null 2>&1; then
+                    echo "   ✅ Python packages installed (with sudo)."
+                elif pip3 install --user matplotlib pandas openpyxl >/dev/null 2>&1; then
+                    echo "   ✅ Python packages installed (user mode)."
+                else
+                    echo "   ❌ Failed to install Python packages."
+                    echo "      Run manually: pip3 install matplotlib pandas openpyxl"
+                    echo "      Charts will be skipped."
+                    GENERATE_USAGE_CHARTS=false
+                fi
+            else
+                echo "   ✅ Python packages already installed."
+            fi
+        fi
+    fi
+
+    echo "   ✅ Prerequisites check complete."
+
+    # --- Auto-discover regions if requested ---
+    if [[ "$REGIONS" == "auto-detected" ]]; then
+        echo ""
+        echo "🌍 Auto-detecting regions from billing data..."
+        source ./lib/auto_discover.sh
+
+        # Use logger stubs if not defined
+        type log_start &>/dev/null 2>&1 || log_start() { echo "  $*"; }
+        type log_success &>/dev/null 2>&1 || log_success() { echo "  ✅ $*"; }
+        type log_error &>/dev/null 2>&1 || log_error() { echo "  ❌ $*"; }
+
+        if auto_discover_regions "$START_DATE" "$END_DATE"; then
+            region_flag="-r $DISCOVERED_REGIONS"
+            echo "   Detected regions: $DISCOVERED_REGIONS"
+        else
+            # Fallback to default regions
+            echo "   ⚠️  Could not auto-detect. Using default: ap-southeast-1,us-east-1"
+            region_flag="-r ap-southeast-1,us-east-1"
+        fi
+    elif [[ -n "$REGIONS" ]]; then
+        region_flag="-r $REGIONS"
+    fi
+
+    local chart_flag=""
+    if [[ "${GENERATE_USAGE_CHARTS:-false}" == "true" ]]; then
+        chart_flag="-g"
+    fi
 
     chmod +x script/usage/*.sh 2>/dev/null || true
 
@@ -555,7 +639,26 @@ fi
 # Usage mode has its own flow (needs date range + optional charts)
 if [[ "$MODE" == "usage" ]]; then
     input_date_range
-    input_regions
+
+    # Ask if they want auto-discover regions or manual input
+    USAGE_REGION_METHOD=$(whiptail --title "$TITLE - Region Selection" --radiolist \
+"How do you want to select regions?" 11 70 2 \
+        "auto" "Auto-detect from billing data (recommended)" ON \
+        "manual" "Manual input" OFF \
+        3>&1 1>&2 2>&3) || USAGE_REGION_METHOD="manual"
+
+    if [[ "$USAGE_REGION_METHOD" == "auto" ]]; then
+        # Auto-detect regions using Cost Explorer
+        REGIONS="auto-detected"
+        whiptail --title "$TITLE - Regions" --msgbox \
+"Regions will be auto-detected from your billing data.
+
+Services with Bedrock/QuickSight charges will be identified
+and their regions used automatically." 10 70
+    else
+        input_regions
+    fi
+
     select_usage_reports
 
     if [[ -z "$USAGE_SELECTION" ]]; then

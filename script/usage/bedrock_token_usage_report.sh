@@ -83,15 +83,35 @@ done
 
 if [[ "$GENERATE_CHARTS" == "true" ]]; then
     if ! command -v python3 &>/dev/null; then
-        log "❌ python3 is required for chart generation. Install Python3."
-        exit 1
+        log "⚠️ python3 not found. Attempting to install..."
+        if command -v yum &>/dev/null; then
+            sudo yum install -y python3 python3-pip >/dev/null 2>&1 || true
+        elif command -v apt-get &>/dev/null; then
+            sudo apt-get install -y python3 python3-pip >/dev/null 2>&1 || true
+        fi
+        if ! command -v python3 &>/dev/null; then
+            log "❌ python3 could not be installed. Skipping chart generation."
+            GENERATE_CHARTS=false
+        fi
     fi
-    # Check Python dependencies
-    python3 -c "import matplotlib, pandas, openpyxl" 2>/dev/null || {
-        log "❌ Python dependencies missing. Install with:"
-        log "   pip3 install matplotlib pandas openpyxl"
-        exit 1
-    }
+
+    if [[ "$GENERATE_CHARTS" == "true" ]]; then
+        # Check Python dependencies, auto-install if missing
+        if ! python3 -c "import matplotlib, pandas, openpyxl" 2>/dev/null; then
+            log "⚠️ Python dependencies missing. Installing matplotlib, pandas, openpyxl..."
+            if pip3 install matplotlib pandas openpyxl >/dev/null 2>&1; then
+                log "✅ Python dependencies installed."
+            elif sudo pip3 install matplotlib pandas openpyxl >/dev/null 2>&1; then
+                log "✅ Python dependencies installed (with sudo)."
+            elif pip3 install --user matplotlib pandas openpyxl >/dev/null 2>&1; then
+                log "✅ Python dependencies installed (user mode)."
+            else
+                log "❌ Failed to install Python dependencies. Skipping chart generation."
+                log "   Manual fix: pip3 install matplotlib pandas openpyxl"
+                GENERATE_CHARTS=false
+            fi
+        fi
+    fi
 fi
 
 mkdir -p "$OUTPUT_DIR"
