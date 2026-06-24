@@ -18,7 +18,8 @@ REPORT_DEFINITIONS=(
     "acm|./script/inventory/acm_report.sh|-r"
     "asg|./script/inventory/asg_report.sh|-r"
     "backup|./script/inventory/backup_report.sh|-r"
-    "bedrock_usage|./script/bedrock_usage_report.sh|-r -b -e"
+    "bedrock_usage|./script/usage/bedrock_cost_usage_report.sh|-r -b -e"
+    "bedrock_token_usage|./script/usage/bedrock_token_usage_report.sh|-r -b -e"
     "billing|./script/inventory/aws_billing_report.sh|-b -e"
     "cloudfront|./script/inventory/cloudfront_report.sh|"
     "cloudwatch|./script/inventory/cloudwatch_report.sh|-r"
@@ -58,7 +59,7 @@ REPORT_DEFINITIONS=(
     "kinesis|./script/inventory/kinesis_report.sh|-r"
     "redshift|./script/inventory/redshift_report.sh|-r"
     "opensearch|./script/inventory/opensearch_report.sh|-r"
-    "quicksight_usage|./script/quicksight_usage_report.sh|-r -b -e"
+    "quicksight_usage|./script/usage/quicksight_usage_report.sh|-r -b -e"
     "codepipeline|./script/inventory/codepipeline_report.sh|-r"
     "ssm_params|./script/inventory/ssm_params_report.sh|-r"
     "eventbridge|./script/inventory/eventbridge_report.sh|-r"
@@ -123,7 +124,7 @@ build_task_list() {
             for m in "${modes[@]}"; do
                 case "$m" in
                     inventory)
-                        if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+                        if [[ "$config_key" != opt_* && "$config_key" != sec_* && "$config_key" != *_usage && "$config_key" != *_token_usage ]]; then
                             include=true
                         fi
                         ;;
@@ -134,6 +135,11 @@ build_task_list() {
                         ;;
                     security)
                         if [[ "$config_key" == sec_* ]]; then
+                            include=true
+                        fi
+                        ;;
+                    usage)
+                        if [[ "$config_key" == *_usage || "$config_key" == *_token_usage ]]; then
                             include=true
                         fi
                         ;;

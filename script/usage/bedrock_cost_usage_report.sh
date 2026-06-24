@@ -1,5 +1,5 @@
 #!/bin/bash
-# bedrock_usage_report.sh
+# bedrock_cost_usage_report.sh
 # Gathers a usage report on Amazon Bedrock: token consumption per user/role.
 # Uses two approaches:
 #   1. Cost Explorer - Bedrock cost breakdown by usage type (always available)
