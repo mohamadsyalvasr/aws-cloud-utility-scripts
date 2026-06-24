@@ -117,16 +117,27 @@ def write_table(ws, start_row, headers, data_rows):
     return start_row + len(data_rows) + 1
 
 
-def insert_chart_image(ws, row, col, chart_bytes, width_px=850):
-    """Insert a chart image into the worksheet."""
+def insert_chart_image(ws, row, col, chart_bytes, width_cm=24, height_cm=12):
+    """Insert a chart image into the worksheet with proper sizing.
+    
+    Default size: 24cm x 12cm — fits nicely within standard Excel print width.
+    Also sets row heights so the image doesn't overlap content below.
+    """
     if chart_bytes is None:
         return row
     img = XLImage(chart_bytes)
-    img.width = width_px
-    img.height = int(width_px * 0.45)
+    # openpyxl uses EMU internally, but width/height in pixels works.
+    # 1 cm ≈ 37.8 pixels at 96dpi
+    img.width = int(width_cm * 37.8)
+    img.height = int(height_cm * 37.8)
     ws.add_image(img, f'{get_column_letter(col)}{row}')
-    rows_needed = int(img.height / 15) + 2
-    return row + rows_needed
+    # Set row heights to accommodate the image
+    # Excel default row height is ~15pt (20px). Image needs enough rows.
+    px_per_row = 20
+    rows_needed = int(img.height / px_per_row) + 1
+    for r in range(row, row + rows_needed):
+        ws.row_dimensions[r].height = 15  # consistent row height
+    return row + rows_needed + 1
 
 
 def write_conclusion(ws, row, conclusions):

@@ -185,6 +185,8 @@ def _conclude_reliability(models_data):
 def build_sheet_token_usage(wb, models_data, account_label, period_str):
     """Sheet 1: Token Usage — table + charts + conclusion."""
     ws = wb.create_sheet("Token Usage")
+    # Set column A wide enough for full model names in charts
+    ws.column_dimensions['A'].width = 60
     ws.cell(row=1, column=1, value=f"Bedrock Token Usage - {account_label}").font = TITLE_FONT
     ws.cell(row=2, column=1, value=f"Period: {period_str}").font = SUBTITLE_FONT
     row = 4
@@ -226,6 +228,7 @@ def build_sheet_token_usage(wb, models_data, account_label, period_str):
 def build_sheet_latency(wb, models_data, account_label, period_str):
     """Sheet 2: Latency & Performance — table + charts + conclusion."""
     ws = wb.create_sheet("Latency & Performance")
+    ws.column_dimensions['A'].width = 60
     ws.cell(row=1, column=1, value=f"Bedrock Latency & Performance - {account_label}").font = TITLE_FONT
     ws.cell(row=2, column=1, value=f"Period: {period_str}").font = SUBTITLE_FONT
     row = 4
@@ -275,6 +278,7 @@ def build_sheet_latency(wb, models_data, account_label, period_str):
 def build_sheet_volume(wb, models_data, account_label, period_str):
     """Sheet 3: Volume & Distribution — table + charts + conclusion."""
     ws = wb.create_sheet("Volume & Distribution")
+    ws.column_dimensions['A'].width = 60
     ws.cell(row=1, column=1, value=f"Bedrock Volume & Distribution - {account_label}").font = TITLE_FONT
     ws.cell(row=2, column=1, value=f"Period: {period_str}").font = SUBTITLE_FONT
     row = 4
@@ -312,6 +316,7 @@ def build_sheet_volume(wb, models_data, account_label, period_str):
 def build_sheet_reliability(wb, models_data, account_label, period_str):
     """Sheet 4: Reliability & Errors — table + charts + conclusion."""
     ws = wb.create_sheet("Reliability & Errors")
+    ws.column_dimensions['A'].width = 60
     ws.cell(row=1, column=1, value=f"Bedrock Reliability & Errors - {account_label}").font = TITLE_FONT
     ws.cell(row=2, column=1, value=f"Period: {period_str}").font = SUBTITLE_FONT
     row = 4

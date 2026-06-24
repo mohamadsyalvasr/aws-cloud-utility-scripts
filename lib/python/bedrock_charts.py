@@ -15,10 +15,10 @@ COLORS = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5',
            '#70AD47', '#264478', '#9B59B6', '#E74C3C', '#1ABC9C']
 
 
-def chart_to_bytes(fig, dpi=130):
-    """Convert matplotlib figure to PNG bytes."""
+def chart_to_bytes(fig, dpi=150):
+    """Convert matplotlib figure to PNG bytes at high resolution."""
     buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', facecolor='white')
     plt.close(fig)
     buf.seek(0)
     return buf
