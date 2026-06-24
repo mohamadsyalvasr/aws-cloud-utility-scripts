@@ -147,11 +147,26 @@ list_model_ids() {
     local region="$1"
     local namespace="$2"
 
-    aws cloudwatch list-metrics \
-        --region "$region" \
-        --namespace "$namespace" \
-        --metric-name "InputTokenCount" \
-        --output json 2>/dev/null || echo '{"Metrics":[]}'
+    # Discover from multiple metrics to catch all models
+    # (some models may only appear in Invocations but not InputTokenCount)
+    local all_metrics=""
+
+    for metric_name in "InputTokenCount" "Invocations" "InvocationLatency"; do
+        local result
+        result=$(aws cloudwatch list-metrics \
+            --region "$region" \
+            --namespace "$namespace" \
+            --metric-name "$metric_name" \
+            --output json 2>/dev/null || echo '{"Metrics":[]}')
+        if [[ -z "$all_metrics" ]]; then
+            all_metrics="$result"
+        else
+            # Merge Metrics arrays
+            all_metrics=$(echo "$all_metrics" "$result" | jq -s '.[0].Metrics + .[1].Metrics | unique_by(.Dimensions) | {Metrics: .}')
+        fi
+    done
+
+    echo "$all_metrics"
 }
 
 # =========================================================================
@@ -254,9 +269,9 @@ for region in "${REGIONS[@]}"; do
             echo "$CURRENT" | jq --argjson entry "$MODEL_ENTRY" '. + [$entry]' > "$MODELS_TMP"
 
             # Quick summary log
-            TOTAL_IN=$(echo "$INPUT_TOKENS" | jq '[.Datapoints[].Sum] | add // 0 | floor')
-            TOTAL_OUT=$(echo "$OUTPUT_TOKENS" | jq '[.Datapoints[].Sum] | add // 0 | floor')
-            TOTAL_INV=$(echo "$INVOCATIONS" | jq '[.Datapoints[].Sum] | add // 0 | floor')
+            TOTAL_IN=$(echo "$INPUT_TOKENS" | jq '[.Datapoints[]?.Sum // 0] | add // 0 | floor')
+            TOTAL_OUT=$(echo "$OUTPUT_TOKENS" | jq '[.Datapoints[]?.Sum // 0] | add // 0 | floor')
+            TOTAL_INV=$(echo "$INVOCATIONS" | jq '[.Datapoints[]?.Sum // 0] | add // 0 | floor')
             log "    → Tokens: In=$TOTAL_IN Out=$TOTAL_OUT | Invocations=$TOTAL_INV"
 
         done <<< "$MODEL_IDS"
