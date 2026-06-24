@@ -37,30 +37,41 @@ from bedrock_helpers import datapoints_to_df, safe_sum, short_model_name
 # TOKEN USAGE CHARTS
 # =============================================================================
 def make_token_usage_chart(models_data):
-    """Bar chart: Input vs Output tokens per model."""
+    """Bar chart: Input vs Output tokens per model with value labels."""
     labels = [short_model_name(m['model_id']) for m in models_data]
     input_vals = [safe_sum(m['metrics'].get('input_tokens', [])) for m in models_data]
     output_vals = [safe_sum(m['metrics'].get('output_tokens', [])) for m in models_data]
 
-    fig, ax = plt.subplots(figsize=(12, max(4, len(labels) * 0.6)))
+    fig, ax = plt.subplots(figsize=(14, max(5, len(labels) * 0.8)))
     y = range(len(labels))
     h = 0.35
-    ax.barh([i - h/2 for i in y], input_vals, h, label='Input Tokens', color=COLORS[0])
-    ax.barh([i + h/2 for i in y], output_vals, h, label='Output Tokens', color=COLORS[1])
+    bars1 = ax.barh([i - h/2 for i in y], input_vals, h, label='Input Tokens', color=COLORS[0])
+    bars2 = ax.barh([i + h/2 for i in y], output_vals, h, label='Output Tokens', color=COLORS[1])
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_yticklabels(labels, fontsize=8)
     ax.set_xlabel('Token Count')
     ax.set_title('Input and Output Token Usage by Model', fontweight='bold')
     ax.legend(loc='lower right')
     ax.grid(axis='x', alpha=0.3)
     _clean_spines(ax)
+    # Add value labels
+    for bar in bars1:
+        w = bar.get_width()
+        if w > 0:
+            ax.text(w, bar.get_y() + bar.get_height()/2, f' {int(w):,}',
+                    va='center', fontsize=7, color='#333')
+    for bar in bars2:
+        w = bar.get_width()
+        if w > 0:
+            ax.text(w, bar.get_y() + bar.get_height()/2, f' {int(w):,}',
+                    va='center', fontsize=7, color='#333')
     plt.tight_layout()
     return chart_to_bytes(fig)
 
 
 def make_token_trend_chart(models_data):
-    """Line chart: Total tokens over time per model."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    """Line chart: Total tokens over time per model with endpoint values."""
+    fig, ax = plt.subplots(figsize=(14, 6))
     for idx, m in enumerate(models_data):
         label = short_model_name(m['model_id'])
         input_dp = m['metrics'].get('input_tokens', [])
@@ -81,12 +92,18 @@ def make_token_trend_chart(models_data):
             merged = df_in[['Timestamp', 'InputSum']].copy()
             merged['Total'] = merged['InputSum']
         merged = merged.sort_values('Timestamp')
+        color = COLORS[idx % len(COLORS)]
         ax.plot(merged['Timestamp'], merged['Total'], marker='o', markersize=3,
-                label=label, color=COLORS[idx % len(COLORS)], linewidth=1.5)
+                label=label, color=color, linewidth=1.5)
+        # Annotate last point with value
+        if not merged.empty:
+            last = merged.iloc[-1]
+            ax.annotate(f'{int(last["Total"]):,}', xy=(last['Timestamp'], last['Total']),
+                        fontsize=7, color=color, ha='left', va='bottom')
     ax.set_title('Total Tokens Over Time', fontweight='bold')
     ax.set_xlabel('Date')
     ax.set_ylabel('Total Tokens')
-    ax.legend(loc='upper left', fontsize=8)
+    ax.legend(loc='upper left', fontsize=7)
     ax.grid(alpha=0.3)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.xticks(rotation=45)
@@ -96,7 +113,7 @@ def make_token_trend_chart(models_data):
 
 
 def make_cache_chart(models_data):
-    """Bar chart: Cache Read vs Write tokens."""
+    """Bar chart: Cache Read vs Write tokens with value labels."""
     labels, reads, writes = [], [], []
     for m in models_data:
         r = safe_sum(m['metrics'].get('cache_read_tokens', []))
@@ -107,17 +124,25 @@ def make_cache_chart(models_data):
             writes.append(w)
     if not labels:
         return None
-    fig, ax = plt.subplots(figsize=(10, max(3, len(labels) * 0.5)))
+    fig, ax = plt.subplots(figsize=(12, max(4, len(labels) * 0.7)))
     y = range(len(labels))
     h = 0.35
-    ax.barh([i - h/2 for i in y], reads, h, label='Cache Read', color=COLORS[4])
-    ax.barh([i + h/2 for i in y], writes, h, label='Cache Write', color=COLORS[5])
+    bars1 = ax.barh([i - h/2 for i in y], reads, h, label='Cache Read', color=COLORS[4])
+    bars2 = ax.barh([i + h/2 for i in y], writes, h, label='Cache Write', color=COLORS[5])
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_yticklabels(labels, fontsize=8)
     ax.set_xlabel('Token Count')
     ax.set_title('Prompt Cache Usage (Read vs Write Tokens)', fontweight='bold')
     ax.legend()
     ax.grid(axis='x', alpha=0.3)
+    for bar in bars1:
+        w = bar.get_width()
+        if w > 0:
+            ax.text(w, bar.get_y() + bar.get_height()/2, f' {int(w):,}', va='center', fontsize=7)
+    for bar in bars2:
+        w = bar.get_width()
+        if w > 0:
+            ax.text(w, bar.get_y() + bar.get_height()/2, f' {int(w):,}', va='center', fontsize=7)
     plt.tight_layout()
     return chart_to_bytes(fig)
 
@@ -126,8 +151,8 @@ def make_cache_chart(models_data):
 # LATENCY & PERFORMANCE CHARTS
 # =============================================================================
 def make_latency_chart(models_data):
-    """Line chart: Average InvocationLatency over time."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    """Line chart: Average InvocationLatency over time with endpoint values."""
+    fig, ax = plt.subplots(figsize=(14, 6))
     for idx, m in enumerate(models_data):
         dp = m['metrics'].get('invocation_latency', m['metrics'].get('model_latency', []))
         if not dp:
@@ -136,12 +161,18 @@ def make_latency_chart(models_data):
         if df.empty or 'Average' not in df.columns:
             continue
         label = short_model_name(m['model_id'])
+        color = COLORS[idx % len(COLORS)]
         ax.plot(df['Timestamp'], df['Average'], marker='o', markersize=3,
-                label=label, color=COLORS[idx % len(COLORS)], linewidth=1.5)
+                label=label, color=color, linewidth=1.5)
+        # Annotate last point
+        if not df.empty:
+            last = df.iloc[-1]
+            ax.annotate(f'{last["Average"]:,.0f}ms', xy=(last['Timestamp'], last['Average']),
+                        fontsize=7, color=color, ha='left', va='bottom')
     ax.set_title('End-to-End Invocation Latency (Avg ms)', fontweight='bold')
     ax.set_xlabel('Date')
     ax.set_ylabel('Latency (ms)')
-    ax.legend(loc='upper left', fontsize=8)
+    ax.legend(loc='upper left', fontsize=7)
     ax.grid(alpha=0.3)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.xticks(rotation=45)
@@ -211,8 +242,8 @@ def make_tpm_chart(models_data):
 # VOLUME & DISTRIBUTION CHARTS
 # =============================================================================
 def make_invocation_count_chart(models_data):
-    """Line chart: Invocation count over time."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    """Line chart: Invocation count over time with endpoint values."""
+    fig, ax = plt.subplots(figsize=(14, 6))
     for idx, m in enumerate(models_data):
         dp = m['metrics'].get('invocations', m['metrics'].get('model_invocations', []))
         if not dp:
@@ -221,12 +252,18 @@ def make_invocation_count_chart(models_data):
         if df.empty or 'Sum' not in df.columns:
             continue
         label = short_model_name(m['model_id'])
+        color = COLORS[idx % len(COLORS)]
         ax.plot(df['Timestamp'], df['Sum'], marker='o', markersize=3,
-                label=label, color=COLORS[idx % len(COLORS)], linewidth=1.5)
+                label=label, color=color, linewidth=1.5)
+        # Annotate last point
+        if not df.empty:
+            last = df.iloc[-1]
+            ax.annotate(f'{int(last["Sum"]):,}', xy=(last['Timestamp'], last['Sum']),
+                        fontsize=7, color=color, ha='left', va='bottom')
     ax.set_title('Invocation Count Over Time', fontweight='bold')
     ax.set_xlabel('Date')
     ax.set_ylabel('Invocations')
-    ax.legend(loc='upper left', fontsize=8)
+    ax.legend(loc='upper left', fontsize=7)
     ax.grid(alpha=0.3)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.xticks(rotation=45)
@@ -235,8 +272,8 @@ def make_invocation_count_chart(models_data):
 
 
 def make_token_distribution_chart(models_data):
-    """Range chart: Input token size distribution per model (min|avg|max)."""
-    fig, ax = plt.subplots(figsize=(10, max(4, len(models_data) * 0.6)))
+    """Range chart: Input token size distribution per model (min|avg|max) with values."""
+    fig, ax = plt.subplots(figsize=(14, max(5, len(models_data) * 0.8)))
     labels, avgs, mins, maxs = [], [], [], []
     for m in models_data:
         dp = m['metrics'].get('input_tokens', [])
@@ -258,8 +295,11 @@ def make_token_distribution_chart(models_data):
     for i in range(len(labels)):
         ax.plot([mins[i], maxs[i]], [i, i], color=COLORS[2], linewidth=2, solid_capstyle='round')
         ax.plot(avgs[i], i, 'o', color=COLORS[0], markersize=8)
+        # Value labels
+        ax.text(maxs[i], i, f' max:{int(maxs[i]):,}', va='center', fontsize=7, color='#666')
+        ax.text(avgs[i], i + 0.2, f'avg:{int(avgs[i]):,}', va='bottom', fontsize=7, color=COLORS[0], ha='center')
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_yticklabels(labels, fontsize=8)
     ax.set_xlabel('Input Tokens per Request')
     ax.set_title('Request Distribution by Input Token Size (Min | Avg | Max)', fontweight='bold')
     ax.grid(axis='x', alpha=0.3)
@@ -300,7 +340,7 @@ def make_throttles_chart(models_data):
 
 
 def make_errors_chart(models_data):
-    """Stacked bar: Client vs Server errors per model."""
+    """Stacked bar: Client vs Server errors per model with value labels."""
     labels, client_errs, server_errs = [], [], []
     for m in models_data:
         ce = safe_sum(m['metrics'].get('client_errors', []))
@@ -311,16 +351,26 @@ def make_errors_chart(models_data):
             server_errs.append(se)
     if not labels:
         return None
-    fig, ax = plt.subplots(figsize=(10, max(4, len(labels) * 0.5)))
+    fig, ax = plt.subplots(figsize=(12, max(4, len(labels) * 0.7)))
     y = range(len(labels))
-    ax.barh(y, client_errs, label='Client Errors (4xx)', color=COLORS[1])
-    ax.barh(y, server_errs, left=client_errs, label='Server Errors (5xx)', color=COLORS[8])
+    bars1 = ax.barh(y, client_errs, label='Client Errors (4xx)', color=COLORS[1])
+    bars2 = ax.barh(y, server_errs, left=client_errs, label='Server Errors (5xx)', color=COLORS[8])
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_yticklabels(labels, fontsize=8)
     ax.set_xlabel('Error Count')
     ax.set_title('Invocation Errors (Client vs Server)', fontweight='bold')
     ax.legend()
     ax.grid(axis='x', alpha=0.3)
+    for i, bar in enumerate(bars1):
+        w = bar.get_width()
+        if w > 0:
+            ax.text(w/2, bar.get_y() + bar.get_height()/2, f'{int(w):,}',
+                    va='center', ha='center', fontsize=7, color='white', fontweight='bold')
+    for i, bar in enumerate(bars2):
+        w = bar.get_width()
+        if w > 0:
+            ax.text(client_errs[i] + w/2, bar.get_y() + bar.get_height()/2, f'{int(w):,}',
+                    va='center', ha='center', fontsize=7, color='white', fontweight='bold')
     plt.tight_layout()
     return chart_to_bytes(fig)
 

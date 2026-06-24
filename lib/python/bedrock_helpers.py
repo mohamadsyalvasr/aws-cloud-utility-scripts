@@ -60,12 +60,8 @@ def safe_avg(datapoints, col='Average'):
 
 
 def short_model_name(model_id):
-    """Shorten model ID for display."""
-    if '/' in model_id:
-        return model_id.split('/')[-1]
-    if ':' in model_id:
-        return model_id.split(':')[-1]
-    return model_id[:40]
+    """Return model_id as-is (full name, no truncation)."""
+    return model_id
 
 
 def get_aws_account_info():

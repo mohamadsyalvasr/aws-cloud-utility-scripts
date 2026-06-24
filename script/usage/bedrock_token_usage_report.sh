@@ -288,7 +288,7 @@ for region in "${REGIONS[@]}"; do
     else
         log "  [Agents] Found $AGENT_METRICS_COUNT metric dimension(s)."
 
-        echo "$AGENT_MODELS_JSON" | jq -c '.Metrics[]' | while read -r metric; do
+        while read -r metric; do
             AGENT_ARN=$(echo "$metric" | jq -r '.Dimensions[] | select(.Name == "AgentAliasArn") | .Value // ""')
             MODEL_ID=$(echo "$metric" | jq -r '.Dimensions[] | select(.Name == "ModelId") | .Value // ""')
             OPERATION=$(echo "$metric" | jq -r '.Dimensions[] | select(.Name == "Operation") | .Value // ""')
@@ -351,11 +351,11 @@ for region in "${REGIONS[@]}"; do
                     }
                 }')
 
-            # Append (use temp file in subshell-safe way)
+            # Append to models array (parent shell, not subshell)
             CURRENT=$(cat "$MODELS_TMP")
             echo "$CURRENT" | jq --argjson entry "$MODEL_ENTRY" '. + [$entry]' > "$MODELS_TMP"
 
-        done
+        done < <(echo "$AGENT_MODELS_JSON" | jq -c '.Metrics[]')
     fi
 
     log "Region \033[1;33m$region\033[0m Complete."
