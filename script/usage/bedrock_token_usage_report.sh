@@ -360,7 +360,7 @@ if [[ "$GENERATE_CHARTS" == "true" ]]; then
     log "✍️ [Part 3] Generating charts, Excel, and ZIP package..."
 
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PYTHON_SCRIPT="${SCRIPT_DIR}/../lib/python/generate_usage_charts.py"
+    PYTHON_SCRIPT="${SCRIPT_DIR}/../../lib/python/generate_usage_charts.py"
 
     if [[ ! -f "$PYTHON_SCRIPT" ]]; then
         log "❌ Python chart script not found: $PYTHON_SCRIPT"
