@@ -72,7 +72,7 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
     log "Processing bucket: \033[1;33m$bucket\033[0m"
 
     REGION=$(aws s3api get-bucket-location --bucket "$bucket" --query 'LocationConstraint' --output text)
-    if [ -z "$REGION" ] || [ "$REGION" = "null" ]; then
+    if [ -z "$REGION" ] || [ "$REGION" = "null" ] || [ "$REGION" = "None" ]; then
         REGION="us-east-1"
     fi
 
@@ -92,7 +92,7 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
         --statistics "Average" \
         --region "$REGION" \
         --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-        --output text)
+        --output text 2>/dev/null) || TOTAL_SIZE_BYTES=0
         
     # Get object count from CloudWatch
     OBJECT_COUNT=$(aws cloudwatch get-metric-statistics \
@@ -105,7 +105,7 @@ echo "$BUCKET_DATA" | jq -c '.[]' | while read -r bucket_info; do
         --statistics "Average" \
         --region "$REGION" \
         --query "sort_by(Datapoints, &Timestamp)[-1].Average" \
-        --output text)
+        --output text 2>/dev/null) || OBJECT_COUNT=0
 
     # Handle null, empty, or "None" values from CloudWatch
     if [[ -z "$TOTAL_SIZE_BYTES" || "$TOTAL_SIZE_BYTES" == "None" || "$TOTAL_SIZE_BYTES" == "null" ]]; then

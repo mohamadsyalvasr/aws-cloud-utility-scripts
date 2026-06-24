@@ -91,6 +91,26 @@ Use comma-separated values to combine:
 | `security` | ❌ Skipped | ❌ Skipped | ✅ Generated |
 | `all` (default) | ✅ Generated | ✅ Generated | ✅ Generated |
 
+### Excel Output Modes (`--excel-mode`)
+
+Controls how inventory reports are structured in the Excel file:
+
+| Flag | Behavior |
+|------|----------|
+| `--excel-mode single` | All inventory reports in 1 sheet (default, scrollable) |
+| `--excel-mode multi` | Each AWS service gets its own sheet (easier navigation) |
+| *(mode=all)* | Automatic: 3 sheets grouped by type (Inventory/Optimization/Security) |
+
+**Note:** `--excel-mode` only affects inventory reports. Optimization and security always use multi-sheet (1 sheet per category).
+
+```bash
+# Inventory: 1 sheet per AWS service
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -m inventory --excel-mode multi
+
+# Mode all: automatic 3 sheets (Inventory, Optimization, Security)
+./main_report_runner.sh -b 2025-08-01 -e 2025-08-31
+```
+
 ## Environment Variables
 
 ### Optimization Thresholds
@@ -164,10 +184,16 @@ auto-detect which services are active based on your AWS billing data:
 ```
 
 **How it works:**
-1. Queries Cost Explorer for services with non-zero cost in the specified period
-2. Maps billing service names to report config keys using pattern matching
-3. Enables only the reports for services that appear in billing
-4. Falls back to config.ini if Cost Explorer is unavailable
+1. Queries Cost Explorer for services with non-zero cost → enables matching reports
+2. Queries Cost Explorer for regions with non-zero cost → sets active regions
+3. Maps billing service names to report config keys using pattern matching
+4. Reports unmapped services (in billing but no script available)
+5. Falls back to config.ini / default regions if Cost Explorer is unavailable
+
+**Region auto-discovery:**
+- If `-r` is NOT explicitly passed, regions are auto-detected from billing
+- If `-r` IS passed, region auto-discovery is skipped (your explicit regions are used)
+- Global services (IAM, S3, CloudFront, Route 53) don't need region detection
 
 **Requirements:**
 - Cost Explorer access (`ce:GetCostAndUsage` permission)
@@ -191,7 +217,20 @@ auto-detect which services are active based on your AWS billing data:
 ./main_report_runner.sh -b 2025-08-01 -e 2025-08-31 -a -m inventory
 ```
 
-**Note:** Auto-discovery only affects inventory reports (no prefix). Optimization (`opt_*`) and security (`sec_*`) reports are still controlled by config.ini.
+**Important:** Auto-discovery has two functions:
+1. **Service discovery** (inventory mode only): detects which AWS services are active from billing
+2. **Region discovery** (all modes): detects which regions have resources from billing
+
+| Mode | Service auto-discover | Region auto-discover |
+|------|----------------------|---------------------|
+| `inventory` or `all` | ✅ Detects services | ✅ Detects regions |
+| `optimize` | ❌ User picks scripts | ✅ Detects regions |
+| `security` | ❌ User picks scripts | ✅ Detects regions |
+| `optimize,security` | ❌ User picks scripts | ✅ Detects regions |
+
+**Skipped services (known billing items without report scripts):**
+- Tax, AWS CloudShell, AWS Amplify, AWS DataSync, Amazon QuickSight, Amazon FSx
+- These are recognized in billing but intentionally don't generate inventory reports
 
 **Unmapped services warning:**
 

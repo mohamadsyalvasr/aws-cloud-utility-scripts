@@ -67,6 +67,15 @@ declare -A SERVICE_PATTERNS=(
     ["IAM"]="iam"
     ["Savings Plans"]="sp"
     ["Reserved"]="ri"
+    ["WAF"]="waf"
+    ["AWS WAF"]="waf"
+    ["GuardDuty"]="sec_logging_audit"
+    ["FSx"]="SKIP"
+    ["Amplify"]="SKIP"
+    ["CloudShell"]="SKIP"
+    ["DataSync"]="SKIP"
+    ["QuickSight"]="SKIP"
+    ["Tax"]="SKIP"
 )
 
 auto_discover_services() {
@@ -127,6 +136,9 @@ auto_discover_services() {
     local enabled_keys=()
     # Track services that have no matching pattern (unmapped)
     local unmapped_services=()
+    # File to store key=value pairs for sourcing after function returns
+    local keys_file="${OUTPUT_DIR}/.discovered_keys"
+    : > "$keys_file"  # Create/truncate
 
     # Match each billing service against patterns
     while IFS= read -r service_name; do
@@ -138,9 +150,12 @@ auto_discover_services() {
                 matched=true
                 # Enable all config keys for this pattern
                 local keys="${SERVICE_PATTERNS[$pattern]}"
+                # Skip services marked as SKIP (known billing items without report scripts)
+                if [[ "$keys" == "SKIP" ]]; then
+                    continue
+                fi
                 for key in $keys; do
-                    # Set the variable (export so it's available to build_task_list)
-                    eval "export ${key}=1"
+                    echo "${key}=1" >> "$keys_file"
                     enabled_keys+=("$key")
                 done
             fi
@@ -151,6 +166,17 @@ auto_discover_services() {
             unmapped_services+=("$service_name")
         fi
     done <<< "$services"
+
+    # Source the discovered keys file to set variables in the calling shell
+    if [[ -s "$keys_file" ]]; then
+        # Deduplicate and source
+        sort -u "$keys_file" > "${keys_file}.tmp" && mv "${keys_file}.tmp" "$keys_file"
+        source "$keys_file"
+        # Also export them
+        while IFS='=' read -r k v; do
+            export "$k=$v"
+        done < "$keys_file"
+    fi
 
     # Deduplicate and report
     local unique_keys
@@ -181,5 +207,118 @@ auto_discover_services() {
     # Always enable IAM (global, always relevant)
     export iam=1
 
+    # Export the keys file path so main_report_runner can re-source if needed
+    export DISCOVERED_KEYS_FILE="$keys_file"
+
+    return 0
+}
+
+# =============================================================================
+# Auto-discover active regions from Cost Explorer billing data.
+# Sets DISCOVERED_REGIONS variable with comma-separated list of active regions.
+# Also creates per-service region mapping file at ${OUTPUT_DIR}/.service_regions
+# =============================================================================
+auto_discover_regions() {
+    local start_date="${1:-$START_DATE}"
+    local end_date="${2:-$END_DATE}"
+
+    # Validate dates
+    if [[ -z "$start_date" || -z "$end_date" ]]; then
+        log_error "auto_discover_regions requires start and end dates"
+        return 1
+    fi
+
+    log_start "🌍 Auto-discovering active regions per service from billing data..."
+
+    # Query Cost Explorer grouped by SERVICE + REGION (2 dimensions)
+    local ce_result
+    set +e
+    ce_result=$(aws ce get-cost-and-usage \
+        --time-period Start="$start_date",End="$end_date" \
+        --granularity MONTHLY \
+        --metrics UnblendedCost \
+        --group-by Type=DIMENSION,Key=SERVICE Type=DIMENSION,Key=REGION \
+        --output json 2>&1)
+    local ce_exit=$?
+    set -e
+
+    if [[ $ce_exit -ne 0 ]]; then
+        log_error "Cost Explorer error during region discovery. Using default regions."
+        return 1
+    fi
+
+    # Extract service+region pairs with non-zero cost
+    local pairs
+    pairs=$(echo "$ce_result" | jq -r '
+        .ResultsByTime[].Groups[] |
+        select((.Metrics.UnblendedCost.Amount | tonumber) > 0) |
+        "\(.Keys[0])|\(.Keys[1])"
+    ' 2>/dev/null)
+
+    if [[ -z "$pairs" ]]; then
+        log_start "   ⚠️ No service+region data found. Using default regions."
+        return 1
+    fi
+
+    # Build per-config-key region mapping
+    # Format: config_key=region1,region2,...
+    local service_regions_file="${OUTPUT_DIR}/.service_regions"
+    local all_regions_file=$(mktemp)
+    local mapping_file=$(mktemp)
+    trap 'rm -f "$all_regions_file" "$mapping_file"' RETURN
+
+    # Process each service+region pair
+    while IFS='|' read -r service_name region_name; do
+        [[ -z "$service_name" || -z "$region_name" ]] && continue
+        [[ "$region_name" == "global" || "$region_name" == "NoRegion" || "$region_name" == "" ]] && continue
+
+        # Track all regions
+        echo "$region_name" >> "$all_regions_file"
+
+        # Map service to config keys using SERVICE_PATTERNS
+        for pattern in "${!SERVICE_PATTERNS[@]}"; do
+            if echo "$service_name" | grep -qi "$pattern"; then
+                local keys="${SERVICE_PATTERNS[$pattern]}"
+                for key in $keys; do
+                    echo "${key}|${region_name}" >> "$mapping_file"
+                done
+            fi
+        done
+    done <<< "$pairs"
+
+    # Build .service_regions file (deduplicated regions per config key)
+    {
+        echo "# Auto-generated by auto_discover_regions at $(date +'%Y-%m-%d %H:%M:%S')"
+        echo "# Format: config_key=region1,region2,..."
+        echo "# Scripts will use these regions instead of the global -r flag"
+    } > "$service_regions_file"
+
+    # Get unique config keys from mapping
+    local config_keys
+    config_keys=$(cut -d'|' -f1 "$mapping_file" 2>/dev/null | sort -u)
+
+    local mapped_count=0
+    while IFS= read -r key; do
+        [[ -z "$key" ]] && continue
+        # Get unique regions for this key
+        local key_regions
+        key_regions=$(grep "^${key}|" "$mapping_file" | cut -d'|' -f2 | sort -u | tr '\n' ',' | sed 's/,$//')
+        if [[ -n "$key_regions" ]]; then
+            echo "${key}=${key_regions}" >> "$service_regions_file"
+            mapped_count=$((mapped_count + 1))
+        fi
+    done <<< "$config_keys"
+
+    # Build global DISCOVERED_REGIONS (all unique regions)
+    DISCOVERED_REGIONS=$(sort -u "$all_regions_file" | tr '\n' ',' | sed 's/,$//')
+    local region_count
+    region_count=$(sort -u "$all_regions_file" | grep -c . || echo "0")
+
+    log_success "Region discovery complete: $region_count region(s), $mapped_count service-region mapping(s)"
+    log_start "   All regions: $DISCOVERED_REGIONS"
+    log_start "   Per-service mapping: $service_regions_file"
+
+    export DISCOVERED_REGIONS
+    export SERVICE_REGIONS_FILE="$service_regions_file"
     return 0
 }

@@ -12,11 +12,13 @@ execute_task() {
 
     log_start "🚀 Running ${task_name}..."
 
+    local error_file="${RESULT_DIR}/${task_name// /_}.error"
+
     set +e
     if [[ ${#run_args[@]} -gt 0 ]]; then
-        "${script_path}" "${run_args[@]}"
+        "${script_path}" "${run_args[@]}" 2> >(tee -a "$error_file" >&2)
     else
-        "${script_path}"
+        "${script_path}" 2> >(tee -a "$error_file" >&2)
     fi
     local exit_code=$?
     set -e
@@ -24,9 +26,14 @@ execute_task() {
     if [[ $exit_code -eq 0 ]]; then
         log_success "${task_name} finished successfully."
         echo "SUCCESS" > "${RESULT_DIR}/${task_name// /_}.status"
+        rm -f "$error_file" 2>/dev/null  # Clean up error file on success
     else
         log_error "${task_name} failed with exit code ${exit_code}."
         echo "FAILED" > "${RESULT_DIR}/${task_name// /_}.status"
+        # Keep only last 5 lines of error for summary
+        if [[ -f "$error_file" ]]; then
+            tail -5 "$error_file" > "${error_file}.tmp" && mv "${error_file}.tmp" "$error_file"
+        fi
     fi
     return $exit_code
 }
@@ -117,13 +124,34 @@ print_summary() {
 
     if [[ $failed -gt 0 ]]; then
         echo ""
-        echo "Failed Reports List:"
+        echo "Failed Reports:"
+        echo ""
         shopt -s nullglob
         for f in "${RESULT_DIR}"/*.status; do
             if [[ "$(cat "$f")" == "FAILED" ]]; then
                 local task_file
                 task_file=$(basename "$f" .status)
-                echo " - ${task_file//_/ }"
+                local error_file="${RESULT_DIR}/${task_file}.error"
+                local log_file="${RESULT_DIR}/${task_file}.log"
+
+                echo " ❌ ${task_file//_/ }"
+
+                # Show error details (from .error file or .log file)
+                if [[ -f "$error_file" && -s "$error_file" ]]; then
+                    echo "    Error:"
+                    while IFS= read -r line; do
+                        # Skip empty lines and timestamp-only lines
+                        [[ -z "$line" ]] && continue
+                        echo "      $line"
+                    done < "$error_file"
+                elif [[ -f "$log_file" ]]; then
+                    # In parallel mode, errors are in the .log file
+                    echo "    Error:"
+                    grep -i "error\|failed\|❌\|denied\|not found" "$log_file" 2>/dev/null | tail -3 | while IFS= read -r line; do
+                        echo "      $line"
+                    done
+                fi
+                echo ""
             fi
         done
         shopt -u nullglob

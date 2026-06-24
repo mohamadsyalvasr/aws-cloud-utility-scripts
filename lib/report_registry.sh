@@ -18,6 +18,8 @@ REPORT_DEFINITIONS=(
     "acm|./script/inventory/acm_report.sh|-r"
     "asg|./script/inventory/asg_report.sh|-r"
     "backup|./script/inventory/backup_report.sh|-r"
+    "bedrock_usage|./script/usage/bedrock_cost_usage_report.sh|-r -b -e"
+    "bedrock_token_usage|./script/usage/bedrock_token_usage_report.sh|-r -b -e"
     "billing|./script/inventory/aws_billing_report.sh|-b -e"
     "cloudfront|./script/inventory/cloudfront_report.sh|"
     "cloudwatch|./script/inventory/cloudwatch_report.sh|-r"
@@ -57,6 +59,7 @@ REPORT_DEFINITIONS=(
     "kinesis|./script/inventory/kinesis_report.sh|-r"
     "redshift|./script/inventory/redshift_report.sh|-r"
     "opensearch|./script/inventory/opensearch_report.sh|-r"
+    "quicksight_usage|./script/usage/quicksight_usage_report.sh|-r -b -e"
     "codepipeline|./script/inventory/codepipeline_report.sh|-r"
     "ssm_params|./script/inventory/ssm_params_report.sh|-r"
     "eventbridge|./script/inventory/eventbridge_report.sh|-r"
@@ -121,7 +124,7 @@ build_task_list() {
             for m in "${modes[@]}"; do
                 case "$m" in
                     inventory)
-                        if [[ "$config_key" != opt_* && "$config_key" != sec_* ]]; then
+                        if [[ "$config_key" != opt_* && "$config_key" != sec_* && "$config_key" != *_usage && "$config_key" != *_token_usage ]]; then
                             include=true
                         fi
                         ;;
@@ -132,6 +135,11 @@ build_task_list() {
                         ;;
                     security)
                         if [[ "$config_key" == sec_* ]]; then
+                            include=true
+                        fi
+                        ;;
+                    usage)
+                        if [[ "$config_key" == *_usage || "$config_key" == *_token_usage ]]; then
                             include=true
                         fi
                         ;;
@@ -153,7 +161,42 @@ build_task_list() {
         if [[ "$config_value" == "1" ]]; then
             local run_args=""
             if [[ -n "$needed_args" ]]; then
-                run_args=$(get_report_args "$script_path" "$needed_args")
+                # Check for per-service region override from .service_regions file
+                local service_regions_file="${OUTPUT_DIR:-}/.service_regions"
+                local has_region_flag=false
+                echo "$needed_args" | grep -q "\-r" && has_region_flag=true || true
+                if [[ -f "$service_regions_file" ]] && [[ "$has_region_flag" == "true" ]]; then
+                    # Look up this config key's specific regions
+                    local key_regions
+                    key_regions=$(grep "^${config_key}=" "$service_regions_file" 2>/dev/null | cut -d'=' -f2 || true)
+                    if [[ -n "$key_regions" ]]; then
+                        # Override -r in PASS_THROUGH_ARGS with per-service regions
+                        local TEMP_PASS_THROUGH=()
+                        local skip_next=false
+                        for (( i=0; i<${#PASS_THROUGH_ARGS[@]}; i++ )); do
+                            if [[ "$skip_next" == "true" ]]; then
+                                skip_next=false
+                                continue
+                            fi
+                            if [[ "${PASS_THROUGH_ARGS[$i]}" == "-r" ]]; then
+                                skip_next=true  # Skip the -r value
+                                continue
+                            fi
+                            TEMP_PASS_THROUGH+=("${PASS_THROUGH_ARGS[$i]}")
+                        done
+                        # Add per-service regions
+                        TEMP_PASS_THROUGH+=("-r" "$key_regions")
+                        # Build args from temp array
+                        local OLD_PASS_THROUGH=("${PASS_THROUGH_ARGS[@]}")
+                        PASS_THROUGH_ARGS=("${TEMP_PASS_THROUGH[@]}")
+                        run_args=$(get_report_args "$script_path" "$needed_args")
+                        PASS_THROUGH_ARGS=("${OLD_PASS_THROUGH[@]}")
+                    else
+                        run_args=$(get_report_args "$script_path" "$needed_args")
+                    fi
+                else
+                    run_args=$(get_report_args "$script_path" "$needed_args")
+                fi
             fi
             TASKS+=("${script_path}|${run_args}")
         fi
