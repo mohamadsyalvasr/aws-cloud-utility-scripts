@@ -6,22 +6,17 @@
 
 set -euo pipefail
 
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
+
 # --- Configuration ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 OUTPUT_FILE_COST="${OUTPUT_DIR}/data_transfer_cost_report.csv"
 OUTPUT_FILE_INSTANCE="${OUTPUT_DIR}/data_transfer_instance_report.csv"
 START_DATE=""
 END_DATE=""
 PERIOD=2592000 # ~30 days in seconds
-
-# --- Logging ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
 
 # --- Usage ---
 usage() {
@@ -61,23 +56,8 @@ fi
 START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
 END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
 
-# --- Dependency Check ---
-check_dependencies() {
-    log "🔎 Checking dependencies (aws cli, jq, bc)..."
-    if ! command -v aws >/dev/null 2>&1; then
-        log "❌ AWS CLI not found."; exit 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        log "❌ jq not found."; exit 1
-    fi
-    if ! command -v bc >/dev/null 2>&1; then
-        log "❌ bc not found."; exit 1
-    fi
-    log "✅ Dependencies met."
-}
-
 # --- Main Script ---
-check_dependencies
+check_dependencies bc
 mkdir -p "$(dirname "$OUTPUT_FILE_COST")"
 
 # =========================================================================

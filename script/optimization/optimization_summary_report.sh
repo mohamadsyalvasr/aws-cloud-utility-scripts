@@ -5,11 +5,11 @@
 
 set -euo pipefail
 
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
+
 # --- Configuration and Arguments ---
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 OUTPUT_FILE="${OUTPUT_DIR}/optimization_summary_report.csv"
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 START_DATE=""
@@ -27,11 +27,6 @@ Options:
   -h               Show this help message.
 EOF
     exit 1
-}
-
-# Add a log function for this script to be self-contained
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
 }
 
 # Process command-line arguments

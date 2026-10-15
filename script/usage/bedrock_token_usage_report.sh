@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
+
 # --- Configuration ---
 REGIONS=("ap-southeast-1" "us-east-1")
 YEAR=$(date +"%Y")
@@ -28,11 +31,6 @@ START_DATE=""
 END_DATE=""
 PERIOD=86400  # Default: 1 day granularity (seconds)
 GENERATE_CHARTS=false
-
-# --- Logging ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
 
 # --- Usage ---
 usage() {
