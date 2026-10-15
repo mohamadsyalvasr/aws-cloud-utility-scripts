@@ -261,6 +261,7 @@ Details: [docs/adding-reports.md](docs/adding-reports.md)
 ├── accounts.conf                  # Target account list
 ├── config.ini                     # Report toggles
 ├── lib/
+│   ├── common.sh                 # Shared bootstrap: logging, dep check, output dir
 │   ├── logger.sh                 # Logging
 │   ├── task_runner.sh            # Execution engine
 │   ├── report_registry.sh       # Report definitions registry

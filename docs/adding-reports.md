@@ -21,18 +21,16 @@ Place your script in the appropriate directory:
 
 set -euo pipefail
 
+# Shared helpers: logging (log/log_start/log_success/log_error),
+# check_dependencies, and init_output_dir. The BASH_SOURCE-resolved path
+# makes sourcing work no matter what the current working directory is.
+# For a script under script/<category>/, the repo root is two levels up:
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
+
 # --- Configuration ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 OUTPUT_FILE="${OUTPUT_DIR}/your_report.csv"
-
-# --- Logging ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
 
 # --- Usage ---
 usage() {
@@ -55,15 +53,10 @@ while getopts "r:b:e:f:h" opt; do
 done
 shift $((OPTIND-1))
 
-# --- Dependency Check ---
-for cmd in aws jq; do
-    if ! command -v "$cmd" &>/dev/null; then
-        log "❌ Required command not found: $cmd"
-        exit 1
-    fi
-done
-
 # --- Main ---
+# check_dependencies verifies aws + jq (pass extra tool names as arguments,
+# e.g. `check_dependencies bc python3`, if your script needs them).
+check_dependencies
 log "✍️ Preparing output file: $OUTPUT_FILE"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
@@ -92,6 +85,16 @@ done
 
 log "✅ DONE. Report saved to: $OUTPUT_FILE"
 ```
+
+> **Why source `lib/common.sh`?** It is the shared bootstrap for every report
+> script. Sourcing it gives you the logging functions (`log`, `log_start`,
+> `log_success`, `log_error` from `lib/logger.sh`), `check_dependencies`
+> (verifies `aws` + `jq`, plus any extra tool names you pass), and
+> `init_output_dir` (sets `OUTPUT_DIR`, honoring an exported value and
+> otherwise defaulting to `export/aws-cloud-report-YYYY-MM-DD`). It also
+> exports `REPO_ROOT`. Do not copy-paste a local `log()` or a `date`-based
+> `OUTPUT_DIR` block; use the shared helpers instead so behavior stays
+> consistent across all scripts.
 
 ### 3. Register in `lib/report_registry.sh`
 
@@ -143,7 +146,7 @@ The prefix determines which `--mode` includes the script:
 3. **Add progress indicators** — Use `[X/Y]` format for loops with many items
 4. **Write header-only CSV on empty results** — Don't fail, just produce an empty report
 5. **Use jq for JSON processing** — Consistent with the rest of the codebase
-6. **Log with timestamps** — Use the `log()` function pattern
+6. **Log through the shared helpers** -- Use the `log` family of functions provided by `lib/common.sh`; do not define a local `log()`
 7. **Handle pagination** — Use `--no-paginate` or implement pagination loops
 
 ## Testing Your Script
