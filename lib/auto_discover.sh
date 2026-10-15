@@ -31,7 +31,7 @@ declare -A SERVICE_PATTERNS=(
     ["VPC"]="vpc vpn natgateway transitgateway"
     ["Elastic File System"]="efs"
     ["SageMaker"]="sagemaker"
-    ["Bedrock"]="bedrock"
+    ["Bedrock"]="bedrock bedrock_usage bedrock_token_usage"
     ["Lightsail"]="lightsail"
     ["WorkSpaces"]="workspaces"
     ["CloudWatch"]="cloudwatch"
@@ -74,7 +74,7 @@ declare -A SERVICE_PATTERNS=(
     ["Amplify"]="SKIP"
     ["CloudShell"]="SKIP"
     ["DataSync"]="SKIP"
-    ["QuickSight"]="SKIP"
+    ["QuickSight"]="quicksight_usage"
     ["Tax"]="SKIP"
 )
 
@@ -263,9 +263,17 @@ auto_discover_regions() {
     # Build per-config-key region mapping
     # Format: config_key=region1,region2,...
     local service_regions_file="${OUTPUT_DIR}/.service_regions"
-    local all_regions_file=$(mktemp)
-    local mapping_file=$(mktemp)
-    trap 'rm -f "$all_regions_file" "$mapping_file"' RETURN
+    local all_regions_file=""
+    local mapping_file=""
+    all_regions_file=$(mktemp)
+    mapping_file=$(mktemp)
+
+    # Cleanup on function return
+    cleanup_region_files() {
+        [[ -n "${all_regions_file:-}" && -f "${all_regions_file:-}" ]] && rm -f "$all_regions_file"
+        [[ -n "${mapping_file:-}" && -f "${mapping_file:-}" ]] && rm -f "$mapping_file"
+    }
+    trap cleanup_region_files RETURN
 
     # Process each service+region pair
     while IFS='|' read -r service_name region_name; do

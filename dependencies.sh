@@ -47,7 +47,7 @@ install_dependencies() {
     log_success "System dependencies check complete."
     
     # --- Python Dependencies ---
-    log_start "🔧 Installing Python libraries for CSV to Excel conversion (pandas, openpyxl, xlsxwriter)..."
+    log_start "🔧 Installing Python libraries for CSV to Excel conversion (pandas, openpyxl, xlsxwriter, matplotlib)..."
     
     # Memastikan Python dan pip tersedia
     if ! command -v python3 >/dev/null 2>&1; then
@@ -62,14 +62,14 @@ install_dependencies() {
 
     # Mencoba instalasi tanpa flag --break-system-packages yang bermasalah.
     # Mencoba instalasi tanpa sudo (untuk lingkungan virtual/user), kemudian dengan sudo jika gagal.
-    if pip3 install pandas openpyxl xlsxwriter >/dev/null 2>&1; then
+    if pip3 install pandas openpyxl xlsxwriter matplotlib >/dev/null 2>&1; then
         log_success "Python dependencies installed."
     else
         log_start "   Warning: Installation failed without sudo. Trying with sudo..."
-        if sudo pip3 install pandas openpyxl xlsxwriter; then
+        if sudo pip3 install pandas openpyxl xlsxwriter matplotlib; then
             log_success "Python dependencies installed with sudo."
         else
-            log_error "   Error: Gagal menginstal Python dependencies. Harap instal 'pandas', 'openpyxl', dan 'xlsxwriter' secara manual."
+            log_error "   Error: Gagal menginstal Python dependencies. Harap instal 'pandas', 'openpyxl', 'xlsxwriter', dan 'matplotlib' secara manual."
             return 0
         fi
     fi
