@@ -273,8 +273,7 @@ Details: [docs/adding-reports.md](docs/adding-reports.md)
 │   ├── optimization/             # Cost optimization scripts
 │   ├── security/                 # Security audit scripts
 │   └── compliance/               # Compliance & governance
-├── docs/                          # Full documentation
-└── web/                           # Web UI (optional)
+└── docs/                          # Full documentation
 ```
 
 ---
