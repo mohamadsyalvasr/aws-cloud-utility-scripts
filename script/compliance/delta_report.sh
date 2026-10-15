@@ -9,10 +9,8 @@
 
 set -euo pipefail
 
-# --- Logging ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
 
 # --- Dependency Check ---
 for cmd in awk sort; do
@@ -23,11 +21,9 @@ for cmd in awk sort; do
 done
 
 # --- Configuration ---
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
+init_output_dir
 BASELINE_DIR="export/baseline/"
-CURRENT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+CURRENT_DIR="${OUTPUT_DIR}"
 UPDATE_BASELINE=false
 
 # --- Usage ---
@@ -332,14 +328,10 @@ for current_csv in "${CURRENT_DIR}"/*.csv; do
     if [[ ! -f "$local_baseline_csv" ]]; then
         log "  ⚠️  No baseline for: $local_base (treating all as NEW)"
         # All rows in current are NEW
-        local resource_type
         resource_type=$(derive_resource_type "$local_base")
-        local id_col
-        local header
         header=$(head -1 "$current_csv" 2>/dev/null || echo "")
         id_col=$(detect_id_column "$header")
         if [[ "$id_col" != "0" && -n "$header" ]]; then
-            local name_col region_col
             name_col=$(detect_name_column "$header")
             region_col=$(detect_region_column "$header")
             awk -F',' -v id_col="$id_col" -v name_col="$name_col" -v region_col="$region_col" \
@@ -359,18 +351,15 @@ for current_csv in "${CURRENT_DIR}"/*.csv; do
     fi
 
     # Compare matched files
-    local resource_type
     resource_type=$(derive_resource_type "$local_base")
 
     # Count rows before comparison for delta tracking
-    local before_lines
     before_lines=$(wc -l < "$OUTPUT_PATH" | tr -d '[:space:]')
 
     compare_csv "$local_baseline_csv" "$current_csv" "$resource_type" "$OUTPUT_PATH"
 
-    local after_lines
     after_lines=$(wc -l < "$OUTPUT_PATH" | tr -d '[:space:]')
-    local delta_rows=$((after_lines - before_lines))
+    delta_rows=$((after_lines - before_lines))
 
     if [[ $delta_rows -gt 0 ]]; then
         log "  📝 $local_base: $delta_rows change(s) detected"

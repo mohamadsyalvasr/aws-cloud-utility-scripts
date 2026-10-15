@@ -6,16 +6,11 @@
 
 set -euo pipefail
 
-# --- Log Function ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
 
 # --- Configuration ---
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 OUTPUT_FILE="${OUTPUT_DIR}/cost_trend_report.csv"
 COST_CHANGE_THRESHOLD="${COST_CHANGE_THRESHOLD:-20}"
 

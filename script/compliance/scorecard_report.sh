@@ -9,10 +9,8 @@
 
 set -euo pipefail
 
-# --- Logging ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
 
 # --- Dependency Check ---
 for cmd in awk bc; do
