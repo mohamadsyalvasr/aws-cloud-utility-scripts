@@ -4,36 +4,13 @@
 
 set -euo pipefail
 
-# --- Logging Function ---
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
 
 # --- Configuration ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 OUTPUT_FILE="${OUTPUT_DIR}/efs_report.csv"
-
-# --- Dependency Check ---
-check_dependencies() {
-    log "🔎 Checking dependencies (aws cli, jq, bc)..."
-    if ! command -v aws >/dev/null 2>&1; then
-        log "❌ AWS CLI not found. Please install it first."
-        exit 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        log "❌ jq not found. Please install it first."
-        exit 1
-    fi
-    if ! command -v bc >/dev/null 2>&1; then
-        log "❌ bc not found. Please install it first."
-        exit 1
-    fi
-    log "✅ Dependencies met."
-}
 
 # --- Helper: Convert bytes to human-readable GiB ---
 bytes_to_gib() {
@@ -46,7 +23,7 @@ bytes_to_gib() {
 }
 
 # --- Main Script ---
-check_dependencies
+check_dependencies bc
 log "✍️ Preparing output file: $OUTPUT_FILE"
 
 # Create CSV header - sizes are in GiB

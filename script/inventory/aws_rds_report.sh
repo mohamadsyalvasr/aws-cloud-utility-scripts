@@ -4,17 +4,13 @@
 
 set -euo pipefail
 
-log() {
-    echo >&2 -e "[$(date +'%H:%M:%S')] $*"
-}
+# Shared helpers: logging, check_dependencies, init_output_dir.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/lib/common.sh"
 
 # --- Configuration and Arguments ---
 REGIONS=("ap-southeast-1" "ap-southeast-3")
 # TS=$(date +"%Y%m%d-%H%M%S")
-YEAR=$(date +"%Y")
-MONTH=$(date +"%m")
-DAY=$(date +"%d")
-OUTPUT_DIR="${OUTPUT_DIR:-export/aws-cloud-report-${YEAR}-${MONTH}-${DAY}}"
+init_output_dir
 FILENAME="${OUTPUT_DIR}/aws_rds_report.csv"
 START_DATE=""
 END_DATE=""
@@ -67,20 +63,6 @@ fi
 
 START_TIME=$(date -u -d "$START_DATE 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
 END_TIME=$(date -u -d "$END_DATE 23:59:59" +%Y-%m-%dT%H:%M:%SZ)
-
-# --- Dependency Check ---
-check_dependencies() {
-    log "🔎 Checking dependencies (aws cli, jq)..."
-    if ! command -v aws >/dev/null 2>&1; then
-        log "❌ AWS CLI not found. Please install it first."
-        exit 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        log "❌ jq not found. Please install it first."
-        exit 1
-    fi
-    log "✅ Dependencies met."
-}
 
 # --- Main Script ---
 check_dependencies
